@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>早稲田式スコアブック</title>
+  <meta name="description" content="少年野球向け早稲田式スコア記録アプリ。試合のスコアを簡単に記録し、画像で共有できます。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&family=M+PLUS+1:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Header -->
+    <header id="app-header">
+      <div class="header-inner">
+        <button id="menu-btn" class="icon-btn" aria-label="メニュー">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <h1 id="app-title">⚾ 早稲田式スコアブック</h1>
+        <div class="header-actions">
+          <button id="export-btn" class="icon-btn" aria-label="画像エクスポート" style="display:none;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Side Menu -->
+    <div id="side-menu-overlay" class="overlay hidden"></div>
+    <nav id="side-menu" class="side-menu hidden">
+      <div class="side-menu-header">
+        <h2>メニュー</h2>
+        <button id="close-menu-btn" class="icon-btn" aria-label="閉じる">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <ul class="menu-list">
+        <li><button class="menu-item" data-page="game-setup">🏟️ 新しい試合</button></li>
+        <li><button class="menu-item" data-page="team-members">👥 メンバー管理</button></li>
+        <li><button class="menu-item" data-page="help">❓ 記号ガイド</button></li>
+      </ul>
+    </nav>
+
+    <!-- Pages -->
+    <main id="main-content">
+      <!-- Game Setup Page -->
+      <section id="page-game-setup" class="page active">
+        <div class="page-container">
+          <div class="welcome-card">
+            <div class="welcome-icon">⚾</div>
+            <h2>早稲田式スコアブック</h2>
+            <p class="welcome-subtitle">少年野球のスコアを<br>かんたんに記録しよう</p>
+          </div>
+          <form id="game-setup-form" class="form-card">
+            <h3>試合情報</h3>
+            <div class="form-group">
+              <label for="game-date">日付</label>
+              <input type="date" id="game-date" required />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="team-first">先攻チーム</label>
+                <input type="text" id="team-first" placeholder="チーム名" required />
+              </div>
+              <div class="vs-label">VS</div>
+              <div class="form-group">
+                <label for="team-second">後攻チーム</label>
+                <input type="text" id="team-second" placeholder="チーム名" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="game-field">球場</label>
+                <input type="text" id="game-field" placeholder="球場名" />
+              </div>
+              <div class="form-group">
+                <label for="game-innings">イニング数</label>
+                <select id="game-innings">
+                  <option value="5">5回</option>
+                  <option value="6">6回</option>
+                  <option value="7" selected>7回</option>
+                  <option value="9">9回</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="game-dh" />
+                <span>DH制を使う</span>
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary btn-large">
+              スタメン登録へ →
+            </button>
+          </form>
+        </div>
+      </section>
+
+      <!-- Team Members Page -->
+      <section id="page-team-members" class="page">
+        <div class="page-container">
+          <div class="section-header">
+            <h2>👥 メンバー管理</h2>
+            <button id="add-member-btn" class="btn btn-primary btn-small">+ 追加</button>
+          </div>
+          <div id="member-list" class="member-list">
+            <!-- dynamically populated -->
+          </div>
+
+          <!-- Add/Edit Member Modal -->
+          <div id="member-modal" class="modal hidden">
+            <div class="modal-content">
+              <h3 id="member-modal-title">メンバー追加</h3>
+              <form id="member-form">
+                <div class="form-group">
+                  <label for="member-name">名前</label>
+                  <input type="text" id="member-name" placeholder="選手名" required />
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="member-number">背番号</label>
+                    <input type="number" id="member-number" min="0" max="99" placeholder="0" />
+                  </div>
+                  <div class="form-group">
+                    <label for="member-bat">打ち方</label>
+                    <select id="member-bat">
+                      <option value="right">右打ち</option>
+                      <option value="left">左打ち</option>
+                      <option value="switch">両打ち</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="member-position">主なポジション</label>
+                  <select id="member-position">
+                    <option value="">未設定</option>
+                    <option value="1">投手 (1)</option>
+                    <option value="2">捕手 (2)</option>
+                    <option value="3">一塁手 (3)</option>
+                    <option value="4">二塁手 (4)</option>
+                    <option value="5">三塁手 (5)</option>
+                    <option value="6">遊撃手 (6)</option>
+                    <option value="7">左翼手 (7)</option>
+                    <option value="8">中堅手 (8)</option>
+                    <option value="9">右翼手 (9)</option>
+                  </select>
+                </div>
+                <div class="modal-actions">
+                  <button type="button" id="cancel-member-btn" class="btn btn-secondary">キャンセル</button>
+                  <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Lineup Page -->
+      <section id="page-lineup" class="page">
+        <div class="page-container">
+          <h2>スタメン登録</h2>
+          <div class="tab-bar">
+            <button class="tab active" data-team="first" id="lineup-tab-first">先攻</button>
+            <button class="tab" data-team="second" id="lineup-tab-second">後攻</button>
+          </div>
+          <div id="lineup-form-container">
+            <!-- dynamically populated -->
+          </div>
+          <div class="lineup-actions">
+            <button id="lineup-back-btn" class="btn btn-secondary">← 戻る</button>
+            <button id="lineup-start-btn" class="btn btn-primary btn-large">記録開始 ⚾</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Scoresheet Page -->
+      <section id="page-scoresheet" class="page">
+        <div class="scoresheet-header">
+          <div class="inning-indicator">
+            <button id="prev-inning-btn" class="icon-btn-small">◀</button>
+            <span id="current-inning-label">1回表</span>
+            <button id="next-inning-btn" class="icon-btn-small">▶</button>
+          </div>
+          <div class="score-summary" id="score-summary">
+            <!-- dynamically populated -->
+          </div>
+        </div>
+        <div id="scoresheet-wrapper" class="scoresheet-wrapper">
+          <div id="scoresheet-container">
+            <!-- scoresheet rendered here -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Help Page -->
+      <section id="page-help" class="page">
+        <div class="page-container">
+          <h2>📖 早稲田式スコア 記号ガイド</h2>
+          <div class="help-cards">
+            <div class="help-card">
+              <h3>守備番号</h3>
+              <div class="help-grid">
+                <div class="help-item"><span class="symbol">1</span><span>投手</span></div>
+                <div class="help-item"><span class="symbol">2</span><span>捕手</span></div>
+                <div class="help-item"><span class="symbol">3</span><span>一塁手</span></div>
+                <div class="help-item"><span class="symbol">4</span><span>二塁手</span></div>
+                <div class="help-item"><span class="symbol">5</span><span>三塁手</span></div>
+                <div class="help-item"><span class="symbol">6</span><span>遊撃手</span></div>
+                <div class="help-item"><span class="symbol">7</span><span>左翼手</span></div>
+                <div class="help-item"><span class="symbol">8</span><span>中堅手</span></div>
+                <div class="help-item"><span class="symbol">9</span><span>右翼手</span></div>
+              </div>
+            </div>
+            <div class="help-card">
+              <h3>塁の表記</h3>
+              <div class="help-grid">
+                <div class="help-item"><span class="symbol">A</span><span>一塁</span></div>
+                <div class="help-item"><span class="symbol">B</span><span>二塁</span></div>
+                <div class="help-item"><span class="symbol">C</span><span>三塁</span></div>
+                <div class="help-item"><span class="symbol">D</span><span>本塁</span></div>
+              </div>
+            </div>
+            <div class="help-card">
+              <h3>打撃結果</h3>
+              <div class="help-grid cols-2">
+                <div class="help-item"><span class="symbol">━</span><span>単打（シングルヒット）</span></div>
+                <div class="help-item"><span class="symbol">═</span><span>二塁打</span></div>
+                <div class="help-item"><span class="symbol">≡</span><span>三塁打</span></div>
+                <div class="help-item"><span class="symbol">HR</span><span>本塁打</span></div>
+                <div class="help-item"><span class="symbol">K</span><span>三振（空振り）</span></div>
+                <div class="help-item"><span class="symbol">Ɔ</span><span>三振（見逃し）</span></div>
+                <div class="help-item"><span class="symbol">B</span><span>四球</span></div>
+                <div class="help-item"><span class="symbol">DB</span><span>死球</span></div>
+                <div class="help-item"><span class="symbol">□</span><span>犠打（バント）</span></div>
+                <div class="help-item"><span class="symbol">◇</span><span>犠飛</span></div>
+                <div class="help-item"><span class="symbol">E</span><span>エラー</span></div>
+                <div class="help-item"><span class="symbol">FC</span><span>フィルダースチョイス</span></div>
+              </div>
+            </div>
+            <div class="help-card">
+              <h3>アウトの書き方</h3>
+              <div class="help-content">
+                <p>ゴロアウトは「送球した選手 - 捕球した選手」の守備番号を書きます。</p>
+                <p>例: <strong>6-3</strong> = 遊撃手 → 一塁手（ショートゴロ）</p>
+                <p>例: <strong>4-6-3</strong> = 二塁手 → 遊撃手 → 一塁手（ダブルプレー）</p>
+                <p>フライアウトは捕球した選手の守備番号を書きます。</p>
+                <p>例: <strong>7</strong> = 左翼手（レフトフライ）</p>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-secondary" onclick="document.querySelector('[data-page=game-setup]').click()">← 戻る</button>
+        </div>
+      </section>
+    </main>
+
+    <!-- Score Input Modal -->
+    <div id="score-input-modal" class="modal hidden">
+      <div class="modal-content modal-large">
+        <div class="modal-header">
+          <h3 id="score-input-title">打席結果を入力</h3>
+          <button id="close-score-input" class="icon-btn" aria-label="閉じる">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div id="score-input-body">
+          <!-- dynamically populated -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="export-modal" class="modal hidden">
+      <div class="modal-content">
+        <h3>📷 画像エクスポート</h3>
+        <div class="export-options">
+          <button id="export-full-btn" class="btn btn-primary btn-large">
+            📋 フルスコアシート
+          </button>
+          <button id="export-board-btn" class="btn btn-secondary btn-large">
+            📊 スコアボードのみ
+          </button>
+        </div>
+        <div id="export-preview" class="export-preview hidden">
+          <img id="export-image" alt="exported score" />
+          <div class="export-actions">
+            <button id="export-download-btn" class="btn btn-primary">💾 ダウンロード</button>
+            <button id="export-share-btn" class="btn btn-secondary" style="display:none;">📤 共有</button>
+          </div>
+        </div>
+        <button id="close-export-btn" class="btn btn-text">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
