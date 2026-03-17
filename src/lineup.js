@@ -204,16 +204,13 @@ function handleStart() {
   // Save current team's lineup first
   saveCurrentTeamLineup();
 
-  // Validate: at least some players in both lineups
-  if (currentGame.lineupFirst.filter(p => p.name).length === 0) {
-    alert('先攻チームのスタメンを入力してください');
-    switchTeam('first');
-    return;
-  }
-  if (currentGame.lineupSecond.filter(p => p.name).length === 0) {
-    alert('後攻チームのスタメンを入力してください');
-    switchTeam('second');
-    return;
+  // Ensure both teams have the correct number of slots (even if empty)
+  const numBatters = currentGame.useDH ? 10 : 9;
+  for (const key of ['first', 'second']) {
+    const lineup = currentGame.getLineup(key);
+    while (lineup.length < numBatters) {
+      lineup.push({ name: '', number: '', position: '', bat: 'right', memberId: '' });
+    }
   }
 
   saveGame(currentGame);
