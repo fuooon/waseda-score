@@ -999,6 +999,131 @@ body {
   color: var(--color-accent);
 }
 
+/* Runner event tags in cells */
+.cell-events {
+  position: absolute;
+  bottom: 1px;
+  left: 2px;
+  display: flex;
+  gap: 1px;
+  z-index: 2;
+}
+
+.cell-event-tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+/* Runner Events Input Section */
+.runner-events-section {
+  margin-top: var(--sp-md);
+  padding: var(--sp-md);
+  background: var(--color-cream);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-light);
+}
+
+.runner-events-section h4 {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: var(--sp-sm);
+  color: var(--color-ink-light);
+}
+
+.runner-event-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.runner-event-btn {
+  padding: 8px 4px;
+  border: 2px solid;
+  border-radius: var(--radius-sm);
+  background: var(--color-paper);
+  font-family: var(--font-main);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.runner-event-btn:hover {
+  transform: scale(0.97);
+  opacity: 0.85;
+}
+
+.runner-event-btn:active {
+  transform: scale(0.94);
+}
+
+.runner-event-symbol {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.runner-event-label {
+  display: block;
+  font-size: 0.65rem;
+  opacity: 0.7;
+}
+
+.runner-events-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--sp-sm);
+  min-height: 0;
+}
+
+.runner-event-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: var(--color-paper);
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  box-shadow: 0 1px 3px var(--color-shadow);
+}
+
+.runner-event-tag {
+  color: white;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.runner-event-remove {
+  background: none;
+  border: none;
+  color: var(--color-ink-lighter);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0 2px;
+  line-height: 1;
+}
+
+.runner-event-remove:hover {
+  color: var(--color-red);
+}
+
+/* Tiebreaker options subsection */
+.form-subsection {
+  margin-top: var(--sp-sm);
+  padding: var(--sp-md);
+  background: var(--color-cream);
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--color-border);
+}
+
 .total-row td {
   background: var(--color-green-light) !important;
   font-weight: 700;

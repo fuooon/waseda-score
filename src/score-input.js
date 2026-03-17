@@ -2,7 +2,7 @@
 // Score Input Panel (Modal)
 // ============================================
 
-import { RESULT_TYPES, POSITIONS, AtBatResult } from './data.js';
+import { RESULT_TYPES, RUNNER_EVENTS, POSITIONS, AtBatResult } from './data.js';
 
 let currentCallback = null;
 
@@ -94,6 +94,34 @@ function renderInputPanel(existingResult) {
     </div>
   </div>`;
 
+  // Runner Events section
+  html += `<div class="runner-events-section">
+    <h4>⚡ 走塁イベント</h4>
+    <div class="runner-event-buttons">`;
+  for (const [key, ev] of Object.entries(RUNNER_EVENTS)) {
+    html += `<button class="runner-event-btn" data-event="${key}" style="border-color: ${ev.color}; color: ${ev.color};">
+      <span class="runner-event-symbol">${ev.symbol}</span>
+      <span class="runner-event-label">${ev.label}</span>
+    </button>`;
+  }
+  html += `</div>
+    <div id="runner-events-list" class="runner-events-list">`;
+  // Render existing runner events
+  if (existingResult?.runnerEvents?.length) {
+    for (let i = 0; i < existingResult.runnerEvents.length; i++) {
+      const re = existingResult.runnerEvents[i];
+      const evDef = RUNNER_EVENTS[re.type];
+      if (evDef) {
+        html += `<div class="runner-event-item" data-index="${i}">
+          <span class="runner-event-tag" style="background: ${evDef.color}">${evDef.symbol}</span>
+          <span>${evDef.label}</span>
+          <button class="runner-event-remove" data-remove="${i}">✕</button>
+        </div>`;
+      }
+    }
+  }
+  html += `</div></div>`;
+
   // Action buttons
   html += `<div style="display:flex;gap:8px;margin-top:16px;">
     <button id="clear-result-btn" class="btn btn-secondary" style="flex:1;">クリア</button>
@@ -107,12 +135,14 @@ function renderInputPanel(existingResult) {
 function bindInputEvents(body, existingResult) {
   let selectedResult = existingResult?.resultType || null;
   let selectedBase = existingResult?.basesReached ?? null;
+  let runnerEvents = existingResult?.runnerEvents ? [...existingResult.runnerEvents] : [];
 
   const positionArea = body.querySelector('#position-area');
   const rbiArea = body.querySelector('#rbi-area');
   const basesArea = body.querySelector('#bases-area');
   const posInput = body.querySelector('#position-detail-input');
   const rbiInput = body.querySelector('#rbi-input');
+  const eventsList = body.querySelector('#runner-events-list');
 
   function updateVisibility() {
     if (selectedResult) {
@@ -151,6 +181,29 @@ function bindInputEvents(body, existingResult) {
     });
   }
 
+  function renderRunnerEventsList() {
+    let html = '';
+    for (let i = 0; i < runnerEvents.length; i++) {
+      const re = runnerEvents[i];
+      const evDef = RUNNER_EVENTS[re.type];
+      if (evDef) {
+        html += `<div class="runner-event-item" data-index="${i}">
+          <span class="runner-event-tag" style="background: ${evDef.color}">${evDef.symbol}</span>
+          <span>${evDef.label}</span>
+          <button class="runner-event-remove" data-remove="${i}">✕</button>
+        </div>`;
+      }
+    }
+    eventsList.innerHTML = html;
+    // Rebind remove buttons
+    eventsList.querySelectorAll('.runner-event-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        runnerEvents.splice(parseInt(btn.dataset.remove, 10), 1);
+        renderRunnerEventsList();
+      });
+    });
+  }
+
   // Result type buttons
   body.querySelectorAll('.score-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -176,6 +229,22 @@ function bindInputEvents(body, existingResult) {
     });
   });
 
+  // Runner event buttons
+  body.querySelectorAll('.runner-event-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      runnerEvents.push({ type: btn.dataset.event, description: '' });
+      renderRunnerEventsList();
+    });
+  });
+
+  // Remove runner event (initial render)
+  eventsList.querySelectorAll('.runner-event-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      runnerEvents.splice(parseInt(btn.dataset.remove, 10), 1);
+      renderRunnerEventsList();
+    });
+  });
+
   // Clear button
   body.querySelector('#clear-result-btn').addEventListener('click', () => {
     const modal = document.getElementById('score-input-modal');
@@ -185,17 +254,18 @@ function bindInputEvents(body, existingResult) {
 
   // Confirm button
   body.querySelector('#confirm-result-btn').addEventListener('click', () => {
-    if (!selectedResult) {
+    if (!selectedResult && runnerEvents.length === 0) {
       alert('結果を選択してください');
       return;
     }
 
-    const rt = RESULT_TYPES[selectedResult];
+    const rt = selectedResult ? RESULT_TYPES[selectedResult] : null;
     const result = new AtBatResult({
       resultType: selectedResult,
       positions: posInput.value.trim(),
       rbi: parseInt(rbiInput.value, 10) || 0,
-      basesReached: selectedBase ?? (rt.isOut ? 0 : (rt.bases || 0)),
+      basesReached: selectedBase ?? (rt?.isOut ? 0 : (rt?.bases || 0)),
+      runnerEvents: runnerEvents,
     });
 
     const modal = document.getElementById('score-input-modal');

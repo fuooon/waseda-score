@@ -2,7 +2,7 @@
 // Scoresheet - Main Score Recording View
 // ============================================
 
-import { POSITION_SHORT, RESULT_TYPES, saveGame } from './data.js';
+import { POSITION_SHORT, RESULT_TYPES, RUNNER_EVENTS, saveGame } from './data.js';
 import { initScoreInput } from './score-input.js';
 import { renderScoreboard } from './scoreboard.js';
 
@@ -213,10 +213,13 @@ function renderScoresheetTable(teamKey) {
 }
 
 function renderCellContent(result) {
-  if (!result || !result.resultType) return '';
+  if (!result) return '';
+  // Handle runner-events-only (no bat result)
+  const hasResult = result.resultType && RESULT_TYPES[result.resultType];
+  const hasEvents = result.runnerEvents && result.runnerEvents.length > 0;
+  if (!hasResult && !hasEvents) return '';
 
-  const rt = RESULT_TYPES[result.resultType];
-  if (!rt) return '';
+  const rt = hasResult ? RESULT_TYPES[result.resultType] : null;
 
   const basesReached = result.basesReached || 0;
   const outNum = result.outNumber || 0;
@@ -226,42 +229,36 @@ function renderCellContent(result) {
   const ROMAN = ['', 'Ⅰ', 'Ⅱ', 'Ⅲ'];
 
   // SVG diamond dimensions (viewBox 0 0 80 80)
-  // Diamond points: top(40,6) right(74,40) bottom(40,74) left(6,40)
   const TOP = '40,6';
   const RIGHT = '74,40';
   const BOTTOM = '40,74';
   const LEFT = '6,40';
 
-  // Base path segments: home→1B, 1B→2B, 2B→3B, 3B→home
+  // Base path segments
   const paths = [
-    { d: `M${BOTTOM} L${RIGHT}`, active: basesReached >= 1 },   // home → 1B
-    { d: `M${RIGHT} L${TOP}`, active: basesReached >= 2 },      // 1B → 2B
-    { d: `M${TOP} L${LEFT}`, active: basesReached >= 3 },       // 2B → 3B
-    { d: `M${LEFT} L${BOTTOM}`, active: basesReached >= 4 },    // 3B → home
+    { d: `M${BOTTOM} L${RIGHT}`, active: basesReached >= 1 },
+    { d: `M${RIGHT} L${TOP}`, active: basesReached >= 2 },
+    { d: `M${TOP} L${LEFT}`, active: basesReached >= 3 },
+    { d: `M${LEFT} L${BOTTOM}`, active: basesReached >= 4 },
   ];
 
   let svg = '<svg class="cell-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">';
-
-  // Diamond outline (gray)
   svg += `<polygon points="${TOP} ${RIGHT} ${BOTTOM} ${LEFT}" fill="none" stroke="#ccc" stroke-width="1.5"/>`;
 
-  // Active base paths (red)
   for (const p of paths) {
     if (p.active) {
       svg += `<path d="${p.d}" fill="none" stroke="#D32F2F" stroke-width="3"/>`;
     }
   }
 
-  // Base dots at corners
   const bases = [
-    { cx: 40, cy: 74, isHome: true },   // Home
-    { cx: 74, cy: 40, base: 1 },        // 1B
-    { cx: 40, cy: 6, base: 2 },         // 2B
-    { cx: 6, cy: 40, base: 3 },         // 3B
+    { cx: 40, cy: 74, isHome: true },
+    { cx: 74, cy: 40, base: 1 },
+    { cx: 40, cy: 6, base: 2 },
+    { cx: 6, cy: 40, base: 3 },
   ];
   for (const b of bases) {
     if (b.isHome) {
-      // Home plate - small diamond
       svg += `<polygon points="40,70 44,74 40,78 36,74" fill="#999" stroke="none"/>`;
     } else {
       const fill = basesReached >= b.base ? '#D32F2F' : '#ccc';
@@ -269,49 +266,38 @@ function renderCellContent(result) {
     }
   }
 
-  // Out number (roman numeral) at center
   if (outNum > 0 && outNum <= 3) {
     svg += `<text x="40" y="44" text-anchor="middle" font-size="22" font-weight="700" font-family="serif" fill="#333">${ROMAN[outNum]}</text>`;
   }
 
-  // Scored run marker (red circle at home)
   if (basesReached >= 4) {
     svg += `<circle cx="40" cy="62" r="7" fill="#D32F2F"/>`;
     svg += `<text x="40" y="66" text-anchor="middle" font-size="10" font-weight="700" fill="white">●</text>`;
   }
 
-  // Bat type indicator under fielder number for outs with positions
-  if (rt.batType && posText) {
-    const firstFielder = posText.split('-')[0];
+  if (rt?.batType && posText) {
     if (rt.batType === 'ground') {
-      // Grounder: horizontal line under the fielder number
       svg += `<line x1="25" y1="68" x2="55" y2="68" stroke="#333" stroke-width="2"/>`;
     } else if (rt.batType === 'fly') {
-      // Fly: arc under the fielder number
       svg += `<path d="M25,68 Q40,60 55,68" fill="none" stroke="#333" stroke-width="1.5"/>`;
     } else if (rt.batType === 'liner') {
-      // Liner: straight line (like a dash)
       svg += `<line x1="25" y1="66" x2="55" y2="66" stroke="#333" stroke-width="2.5"/>`;
     }
   }
 
   svg += '</svg>';
 
-  // Build HTML content with overlay text
   let html = `<div class="cell-content">${svg}`;
 
-  // Position / fielding path (top of cell)
   if (posText) {
     html += `<div class="cell-positions">${posText}</div>`;
   }
 
-  // Result symbol (bottom area for non-position results)
-  if (!posText && rt.symbol) {
+  if (rt && !posText && rt.symbol) {
     html += `<div class="cell-symbol">${rt.symbol}</div>`;
   }
 
-  // Hit indicator bottom line
-  if (rt.category === 'hit') {
+  if (rt?.category === 'hit') {
     const hitLines = { 1: '━', 2: '═', 3: '≡' };
     const baseLine = hitLines[rt.bases];
     if (baseLine) {
@@ -321,9 +307,17 @@ function renderCellContent(result) {
     }
   }
 
-  // Inning-ending mark (3rd out) - double slash
   if (outNum === 3) {
     html += `<div class="cell-inning-end">//</div>`;
+  }
+
+  // Runner events labels
+  if (hasEvents) {
+    const labels = result.runnerEvents.map(e => {
+      const ev = RUNNER_EVENTS[e.type];
+      return ev ? `<span class="cell-event-tag" style="color:${ev.color}">${ev.symbol}</span>` : '';
+    }).join('');
+    html += `<div class="cell-events">${labels}</div>`;
   }
 
   html += '</div>';

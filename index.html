@@ -91,11 +91,49 @@
                 </select>
               </div>
             </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="game-start-time">開始時刻</label>
+                <input type="time" id="game-start-time" />
+              </div>
+              <div class="form-group">
+                <label for="game-end-time">終了時刻</label>
+                <input type="time" id="game-end-time" />
+              </div>
+            </div>
             <div class="form-group">
               <label class="checkbox-label">
                 <input type="checkbox" id="game-dh" />
                 <span>DH制を使う</span>
               </label>
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="game-tiebreaker" />
+                <span>タイブレーク制あり</span>
+              </label>
+            </div>
+            <div id="tiebreaker-options" class="form-subsection hidden">
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="tiebreaker-inning">開始イニング</label>
+                  <select id="tiebreaker-inning">
+                    <option value="5">5回〜</option>
+                    <option value="6" selected>6回〜</option>
+                    <option value="7">7回〜</option>
+                    <option value="8">8回〜</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="tiebreaker-runners">初期ランナー</label>
+                  <select id="tiebreaker-runners">
+                    <option value="none">なし</option>
+                    <option value="1B2B" selected>1・2塁</option>
+                    <option value="2B">2塁のみ</option>
+                    <option value="1B">1塁のみ</option>
+                  </select>
+                </div>
+              </div>
             </div>
             <button type="submit" class="btn btn-primary btn-large">
               スタメン登録へ →

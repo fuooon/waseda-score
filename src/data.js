@@ -42,6 +42,15 @@ const RESULT_TYPES = {
   INTERFERENCE: { id: 'INTERFERENCE', label: '打撃妨害', symbol: 'INT', category: 'other', needsPositions: false, isOut: false, bases: 1 },
 };
 
+const RUNNER_EVENTS = {
+  STOLEN_BASE:    { id: 'STOLEN_BASE', label: '盗塁', symbol: 'S', color: '#1565C0' },
+  CAUGHT_STEALING:{ id: 'CAUGHT_STEALING', label: '盗塁死', symbol: 'CS', color: '#D32F2F' },
+  WILD_PITCH:     { id: 'WILD_PITCH', label: '暴投', symbol: 'WP', color: '#E65100' },
+  PASSED_BALL:    { id: 'PASSED_BALL', label: '捕逸', symbol: 'PB', color: '#E65100' },
+  BALK:           { id: 'BALK', label: 'ボーク', symbol: 'BK', color: '#E65100' },
+  RUNNER_OUT:     { id: 'RUNNER_OUT', label: '走塁死', symbol: 'T.O', color: '#D32F2F' },
+};
+
 class TeamMember {
   constructor(data = {}) {
     this.id = data.id || crypto.randomUUID();
@@ -60,6 +69,8 @@ class AtBatResult {
     this.basesReached = data.basesReached || 0; // 0=out, 1=1B, 2=2B, 3=3B, 4=scored
     this.outNumber = data.outNumber || null; // which out in the inning (1, 2, 3)
     this.note = data.note || '';
+    // Runner events during this at-bat: [{type: 'WILD_PITCH', description: ''}]
+    this.runnerEvents = data.runnerEvents || [];
   }
 }
 
@@ -72,6 +83,11 @@ class GameData {
     this.field = '';
     this.innings = 7;
     this.useDH = false;
+    this.startTime = '';  // e.g. "08:58"
+    this.endTime = '';    // e.g. "10:23"
+    this.tiebreakerInning = 0; // 0 = no tiebreaker, else inning number
+    this.tiebreakerRunners = 'none'; // 'none', '1B', '1B2B', '2B'
+    this.gameResult = ''; // '', 'win', 'loss', 'draw', 'lottery_win', 'lottery_loss'
     this.lineupFirst = []; // array of {name, number, position, bat}
     this.lineupSecond = [];
     this.pitcherFirst = '';
@@ -197,7 +213,7 @@ function clearGame() {
 }
 
 export {
-  POSITIONS, POSITION_SHORT, BAT_LABELS, RESULT_TYPES,
+  POSITIONS, POSITION_SHORT, BAT_LABELS, RESULT_TYPES, RUNNER_EVENTS,
   TeamMember, AtBatResult, GameData,
   saveMembers, loadMembers, saveGame, loadGame, clearGame
 };
