@@ -3,7 +3,7 @@
 // ============================================
 
 import { POSITIONS, POSITION_SHORT, saveGame } from './data.js';
-import { getMembers } from './team-members.js';
+import { getMembersByTeamName } from './team-members.js';
 
 let currentGame = null;
 let currentTeam = 'first';
@@ -39,9 +39,9 @@ function switchTeam(team) {
 
 function renderLineup() {
   const container = document.getElementById('lineup-form-container');
-  const members = getMembers();
-  const lineup = currentGame.getLineup(currentTeam);
   const teamName = currentGame.getTeamName(currentTeam);
+  const members = getMembersByTeamName(teamName);
+  const lineup = currentGame.getLineup(currentTeam);
   const numBatters = currentGame.useDH ? 10 : 9;
 
   let html = `<div class="form-card"><h3>${escapeHtml(teamName)} - 打順</h3>`;
@@ -142,7 +142,8 @@ function renderLineup() {
 
 function collectLineup(teamKey) {
   const container = document.getElementById('lineup-form-container');
-  const members = getMembers();
+  const teamName = currentGame.getTeamName(teamKey);
+  const members = getMembersByTeamName(teamName);
   const numBatters = currentGame.useDH ? 10 : 9;
   const lineup = [];
 
@@ -184,7 +185,8 @@ function collectLineup(teamKey) {
 }
 
 function collectPitcher(teamKey) {
-  const members = getMembers();
+  const teamName = currentGame.getTeamName(teamKey);
+  const members = getMembersByTeamName(teamName);
   const pitcherMemberSelect = document.querySelector('.lineup-pitcher-member-select');
   const pitcherManualInput = document.getElementById(`lineup-pitcher-manual-${teamKey}`);
 

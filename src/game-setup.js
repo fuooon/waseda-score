@@ -2,25 +2,64 @@
 // Game Setup
 // ============================================
 
-import { GameData, saveGame } from './data.js';
+import { GameData, saveGame, loadTeams } from './data.js';
 
 let onComplete = null;
+let teams = [];
 
 export function initGameSetup(callback) {
   onComplete = callback;
+  teams = loadTeams();
+
+  // Populate presets
+  renderPresets();
 
   // Set today's date
   const dateInput = document.getElementById('game-date');
-  dateInput.value = new Date().toISOString().split('T')[0];
+  if (dateInput) {
+    dateInput.value = new Date().toISOString().split('T')[0];
+  }
 
   // Tiebreaker toggle
   const tbCheck = document.getElementById('game-tiebreaker');
   const tbOptions = document.getElementById('tiebreaker-options');
-  tbCheck.addEventListener('change', () => {
-    tbOptions.classList.toggle('hidden', !tbCheck.checked);
+  if (tbCheck && tbOptions) {
+    tbCheck.addEventListener('change', () => {
+      tbOptions.classList.toggle('hidden', !tbCheck.checked);
+    });
+  }
+
+  // Handle preset change
+  document.getElementById('team-first-preset')?.addEventListener('change', (e) => {
+    const nameInput = document.getElementById('team-first');
+    if (e.target.value) {
+      const team = teams.find(t => t.id === e.target.value);
+      if (team && nameInput) nameInput.value = team.name;
+    }
+  });
+  document.getElementById('team-second-preset')?.addEventListener('change', (e) => {
+    const nameInput = document.getElementById('team-second');
+    if (e.target.value) {
+      const team = teams.find(t => t.id === e.target.value);
+      if (team && nameInput) nameInput.value = team.name;
+    }
   });
 
   document.getElementById('game-setup-form').addEventListener('submit', handleSubmit);
+}
+
+function renderPresets() {
+  const selects = document.querySelectorAll('.team-preset-select');
+  selects.forEach(sel => {
+    sel.innerHTML = '<option value="">-- プリセットを選択 --</option>' +
+      teams.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+  });
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
 }
 
 function handleSubmit(e) {

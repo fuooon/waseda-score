@@ -1570,3 +1570,104 @@ body {
   clip: rect(0, 0, 0, 0);
   border: 0;
 }
+
+/* ============================================
+   Responsive Design & Mobile Optimizations
+   ============================================ */
+
+@media (max-width: 600px) {
+  :root {
+    --sp-md: 12px;
+    --sp-lg: 16px;
+    --header-height: 50px;
+  }
+
+  html {
+    font-size: 13px;
+  }
+
+  .page-container {
+    padding: var(--sp-md) var(--sp-sm);
+  }
+
+  .form-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-sm);
+  }
+
+  .vs-label {
+    padding: var(--sp-xs) 0;
+    text-align: center;
+  }
+
+  .lineup-row {
+    gap: 4px;
+  }
+
+  .lineup-position-select {
+    width: 50px;
+  }
+
+  .scoresheet-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: var(--sp-md);
+  }
+
+  .scoresheet-table {
+    min-width: 800px; /* Force scroll */
+  }
+
+  .inning-indicator {
+    gap: 4px;
+  }
+
+  #current-inning-label {
+    font-size: 1rem;
+    min-width: 60px;
+  }
+
+  .score-summary {
+    display: none; /* Hide summary on small mobile to save space */
+  }
+
+  .scoresheet-header {
+    padding: var(--sp-xs) var(--sp-sm);
+  }
+  
+  .modal-content {
+    padding: var(--sp-md);
+  }
+  
+  .member-card {
+    padding: var(--sp-sm);
+  }
+}
+
+/* Touch targets optimization */
+button, 
+select, 
+input {
+  min-height: 44px; /* iOS standard */
+}
+
+.icon-btn-small {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+.scoresheet-table td, 
+.scoresheet-table th {
+  padding: 4px;
+}
+
+.score-cell {
+  width: 60px;
+  height: 60px;
+}
+
+.cell-svg {
+  width: 54px;
+  height: 54px;
+}

@@ -96,12 +96,11 @@ function init() {
 
   // Try to resume existing game
   const savedGame = loadGame();
-  if (savedGame && savedGame.lineupFirst && savedGame.lineupFirst.length > 0 &&
-      savedGame.lineupFirst.some(p => p.name)) {
+  if (savedGame && savedGame.lineupFirst && savedGame.lineupFirst.length > 0) {
     currentGame = savedGame;
 
     // Check if we have lineup data to go straight to scoresheet
-    if (savedGame.lineupSecond && savedGame.lineupSecond.some(p => p.name)) {
+    if (savedGame.lineupSecond && savedGame.lineupSecond.length > 0) {
       showPage('scoresheet');
       initScoresheet(currentGame);
       initExport(currentGame);

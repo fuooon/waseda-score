@@ -17,6 +17,7 @@ export function initScoresheet(game) {
 
   document.getElementById('prev-inning-btn').addEventListener('click', prevInning);
   document.getElementById('next-inning-btn').addEventListener('click', nextInning);
+  document.getElementById('add-inning-btn').addEventListener('click', addInning);
   document.getElementById('game-settings-btn').addEventListener('click', openGameSettings);
 }
 
@@ -51,6 +52,16 @@ function nextInning() {
   saveGame(currentGame);
   updateInningLabel();
   renderScoreSummary();
+}
+
+function addInning() {
+  if (currentGame.innings < 12) {
+    currentGame.innings++;
+    saveGame(currentGame);
+    updateScoresheet();
+  } else {
+    alert('イニング数は最大12回までです');
+  }
 }
 
 function updateInningLabel() {

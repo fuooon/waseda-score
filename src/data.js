@@ -2,6 +2,13 @@
 // Data Model & State Management
 // ============================================
 
+function generateId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'id-' + Date.now() + '-' + Math.random().toString(36).slice(2, 11);
+}
+
 const POSITIONS = {
   1: '投手', 2: '捕手', 3: '一塁手', 4: '二塁手', 5: '三塁手',
   6: '遊撃手', 7: '左翼手', 8: '中堅手', 9: '右翼手'
@@ -53,11 +60,19 @@ const RUNNER_EVENTS = {
 
 class TeamMember {
   constructor(data = {}) {
-    this.id = data.id || crypto.randomUUID();
+    this.id = data.id || generateId();
     this.name = data.name || '';
     this.number = data.number ?? '';
     this.bat = data.bat || 'right';
     this.position = data.position || '';
+  }
+}
+
+class Team {
+  constructor(data = {}) {
+    this.id = data.id || generateId();
+    this.name = data.name || '新しいチーム';
+    this.members = (data.members || []).map(m => new TeamMember(m));
   }
 }
 
@@ -192,6 +207,7 @@ class GameData {
 
 const STORAGE_KEYS = {
   MEMBERS: 'waseda-score-members',
+  TEAMS: 'waseda-score-teams',
   GAME: 'waseda-score-current-game',
 };
 
@@ -204,6 +220,21 @@ function loadMembers() {
     const data = localStorage.getItem(STORAGE_KEYS.MEMBERS);
     if (!data) return [];
     return JSON.parse(data).map(m => new TeamMember(m));
+  } catch {
+    return [];
+  }
+}
+
+function saveTeams(teams) {
+  localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+}
+
+function loadTeams() {
+  try {
+    const data = localStorage.getItem(STORAGE_KEYS.TEAMS);
+    if (!data) return [];
+    const parsed = JSON.parse(data);
+    return parsed.map(t => new Team(t));
   } catch {
     return [];
   }
@@ -232,6 +263,6 @@ function clearGame() {
 
 export {
   POSITIONS, POSITION_SHORT, BAT_LABELS, RESULT_TYPES, RUNNER_EVENTS,
-  TeamMember, AtBatResult, GameData,
-  saveMembers, loadMembers, saveGame, loadGame, clearGame
+  TeamMember, Team, AtBatResult, GameData,
+  saveMembers, loadMembers, saveTeams, loadTeams, saveGame, loadGame, clearGame
 };

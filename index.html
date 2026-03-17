@@ -63,17 +63,23 @@
             <h3>試合情報</h3>
             <div class="form-group">
               <label for="game-date">日付</label>
-              <input type="date" id="game-date" required />
+              <input type="date" id="game-date" />
             </div>
             <div class="form-row">
               <div class="form-group">
                 <label for="team-first">先攻チーム</label>
-                <input type="text" id="team-first" placeholder="チーム名" required />
+                <select id="team-first-preset" class="team-preset-select" style="margin-bottom: 4px;">
+                  <option value="">-- プリセットを選択 --</option>
+                </select>
+                <input type="text" id="team-first" placeholder="チーム名" />
               </div>
               <div class="vs-label">VS</div>
               <div class="form-group">
                 <label for="team-second">後攻チーム</label>
-                <input type="text" id="team-second" placeholder="チーム名" required />
+                <select id="team-second-preset" class="team-preset-select" style="margin-bottom: 4px;">
+                  <option value="">-- プリセットを選択 --</option>
+                </select>
+                <input type="text" id="team-second" placeholder="チーム名" />
               </div>
             </div>
             <div class="form-row">
@@ -147,7 +153,25 @@
         <div class="page-container">
           <div class="section-header">
             <h2>👥 メンバー管理</h2>
-            <button id="add-member-btn" class="btn btn-primary btn-small">+ 追加</button>
+          </div>
+
+          <div class="team-management-card form-card" style="margin-bottom: 24px;">
+            <div class="form-group">
+              <label for="team-select">チーム選択</label>
+              <div style="display: flex; gap: 8px;">
+                <select id="team-select" style="flex: 1;">
+                  <!-- dynamically populated -->
+                </select>
+                <button id="add-team-btn" class="icon-btn-small" title="チーム追加">＋</button>
+                <button id="edit-team-btn" class="icon-btn-small" title="チーム名編集">✏️</button>
+                <button id="delete-team-btn" class="icon-btn-small" style="background: var(--color-red-light); color: var(--color-red);" title="チーム削除">🗑️</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-header">
+            <h3 id="current-team-name-display" style="font-size: 1.1rem; font-weight: 700;">メンバーリスト</h3>
+            <button id="add-member-btn" class="btn btn-primary btn-small">+ メンバー追加</button>
           </div>
           <div id="member-list" class="member-list">
             <!-- dynamically populated -->
@@ -201,6 +225,23 @@
         </div>
       </section>
 
+      <!-- Team Modal -->
+      <div id="team-modal" class="modal hidden">
+        <div class="modal-content">
+          <h3 id="team-modal-title">チーム管理</h3>
+          <form id="team-form">
+            <div class="form-group">
+              <label for="team-name-input">チーム名</label>
+              <input type="text" id="team-name-input" placeholder="チーム名" required />
+            </div>
+            <div class="modal-actions">
+              <button type="button" id="cancel-team-btn" class="btn btn-secondary">キャンセル</button>
+              <button type="submit" class="btn btn-primary">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
       <!-- Lineup Page -->
       <section id="page-lineup" class="page">
         <div class="page-container">
@@ -226,6 +267,7 @@
             <button id="prev-inning-btn" class="icon-btn-small">◀</button>
             <span id="current-inning-label">1回表</span>
             <button id="next-inning-btn" class="icon-btn-small">▶</button>
+            <button id="add-inning-btn" class="icon-btn-small" title="イニング追加">＋</button>
             <button id="game-settings-btn" class="icon-btn-small" title="試合設定">⚙️</button>
           </div>
           <div class="score-summary" id="score-summary">
