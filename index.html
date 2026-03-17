@@ -226,6 +226,7 @@
             <button id="prev-inning-btn" class="icon-btn-small">◀</button>
             <span id="current-inning-label">1回表</span>
             <button id="next-inning-btn" class="icon-btn-small">▶</button>
+            <button id="game-settings-btn" class="icon-btn-small" title="試合設定">⚙️</button>
           </div>
           <div class="score-summary" id="score-summary">
             <!-- dynamically populated -->
@@ -329,6 +330,65 @@
         </div>
         <div id="sub-modal-body">
           <!-- dynamically populated -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Game Settings Edit Modal -->
+    <div id="game-settings-modal" class="modal hidden">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>⚙️ 試合設定</h3>
+          <button id="close-settings-modal" class="icon-btn" aria-label="閉じる">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div id="settings-modal-body">
+          <div class="form-group">
+            <label for="edit-game-date">日付</label>
+            <input type="date" id="edit-game-date" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="edit-team-first">先攻チーム</label>
+              <input type="text" id="edit-team-first" placeholder="チーム名" />
+            </div>
+            <div class="vs-label">VS</div>
+            <div class="form-group">
+              <label for="edit-team-second">後攻チーム</label>
+              <input type="text" id="edit-team-second" placeholder="チーム名" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="edit-game-field">球場</label>
+              <input type="text" id="edit-game-field" placeholder="球場名" />
+            </div>
+            <div class="form-group">
+              <label for="edit-game-innings">イニング数</label>
+              <select id="edit-game-innings">
+                <option value="5">5回</option>
+                <option value="6">6回</option>
+                <option value="7">7回</option>
+                <option value="9">9回</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="edit-start-time">開始時刻</label>
+              <input type="time" id="edit-start-time" />
+            </div>
+            <div class="form-group">
+              <label for="edit-end-time">終了時刻</label>
+              <input type="time" id="edit-end-time" />
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:16px;">
+            <button id="settings-save-btn" class="btn btn-primary" style="flex:1;">保存</button>
+          </div>
         </div>
       </div>
     </div>

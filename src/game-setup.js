@@ -42,11 +42,6 @@ function handleSubmit(e) {
     game.tiebreakerRunners = document.getElementById('tiebreaker-runners').value;
   }
 
-  if (!game.teamFirst || !game.teamSecond) {
-    alert('チーム名を入力してください');
-    return;
-  }
-
   saveGame(game);
   if (onComplete) onComplete(game);
 }

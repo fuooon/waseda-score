@@ -17,6 +17,7 @@ export function initScoresheet(game) {
 
   document.getElementById('prev-inning-btn').addEventListener('click', prevInning);
   document.getElementById('next-inning-btn').addEventListener('click', nextInning);
+  document.getElementById('game-settings-btn').addEventListener('click', openGameSettings);
 }
 
 export function updateScoresheet() {
@@ -517,4 +518,41 @@ function openSubstitutionModal(teamKey, batterIdx) {
 
   modal.classList.remove('hidden');
   body.querySelector('#sub-new-name').focus();
+}
+
+// ============================================
+// Game Settings Edit Modal
+// ============================================
+
+function openGameSettings() {
+  const modal = document.getElementById('game-settings-modal');
+
+  // Populate current values
+  document.getElementById('edit-game-date').value = currentGame.date || '';
+  document.getElementById('edit-team-first').value = currentGame.teamFirst || '';
+  document.getElementById('edit-team-second').value = currentGame.teamSecond || '';
+  document.getElementById('edit-game-field').value = currentGame.field || '';
+  document.getElementById('edit-game-innings').value = String(currentGame.innings || 7);
+  document.getElementById('edit-start-time').value = currentGame.startTime || '';
+  document.getElementById('edit-end-time').value = currentGame.endTime || '';
+
+  document.getElementById('close-settings-modal').onclick = () => {
+    modal.classList.add('hidden');
+  };
+
+  document.getElementById('settings-save-btn').onclick = () => {
+    currentGame.date = document.getElementById('edit-game-date').value;
+    currentGame.teamFirst = document.getElementById('edit-team-first').value.trim();
+    currentGame.teamSecond = document.getElementById('edit-team-second').value.trim();
+    currentGame.field = document.getElementById('edit-game-field').value.trim();
+    currentGame.innings = parseInt(document.getElementById('edit-game-innings').value, 10);
+    currentGame.startTime = document.getElementById('edit-start-time').value || '';
+    currentGame.endTime = document.getElementById('edit-end-time').value || '';
+
+    saveGame(currentGame);
+    modal.classList.add('hidden');
+    updateScoresheet();
+  };
+
+  modal.classList.remove('hidden');
 }
