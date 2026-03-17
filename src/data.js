@@ -16,13 +16,13 @@ const BAT_LABELS = { right: '右', left: '左', switch: '両' };
 
 const RESULT_TYPES = {
   // Outs
-  GROUNDOUT: { id: 'GROUNDOUT', label: 'ゴロ', symbol: 'ゴ', category: 'out', needsPositions: true, isOut: true },
-  FLYOUT: { id: 'FLYOUT', label: 'フライ', symbol: '飛', category: 'out', needsPositions: true, isOut: true },
-  LINEOUT: { id: 'LINEOUT', label: 'ライナー', symbol: '直', category: 'out', needsPositions: true, isOut: true },
-  STRIKEOUT_SWING: { id: 'STRIKEOUT_SWING', label: '空振り三振', symbol: 'K', category: 'out', needsPositions: false, isOut: true },
-  STRIKEOUT_LOOK: { id: 'STRIKEOUT_LOOK', label: '見逃し三振', symbol: 'Ɔ', category: 'out', needsPositions: false, isOut: true },
-  DOUBLE_PLAY: { id: 'DOUBLE_PLAY', label: '併殺打', symbol: 'DP', category: 'out', needsPositions: true, isOut: true, outsCount: 2 },
-  INFIELD_FLY: { id: 'INFIELD_FLY', label: 'インフィールドフライ', symbol: 'IF', category: 'out', needsPositions: true, isOut: true },
+  GROUNDOUT: { id: 'GROUNDOUT', label: 'ゴロ', symbol: 'ゴ', batType: 'ground', category: 'out', needsPositions: true, isOut: true },
+  FLYOUT: { id: 'FLYOUT', label: 'フライ', symbol: '飛', batType: 'fly', category: 'out', needsPositions: true, isOut: true },
+  LINEOUT: { id: 'LINEOUT', label: 'ライナー', symbol: '直', batType: 'liner', category: 'out', needsPositions: true, isOut: true },
+  STRIKEOUT_SWING: { id: 'STRIKEOUT_SWING', label: '空振り三振', symbol: 'SO', category: 'out', needsPositions: false, isOut: true },
+  STRIKEOUT_LOOK: { id: 'STRIKEOUT_LOOK', label: '見逃し三振', symbol: '.SO', category: 'out', needsPositions: false, isOut: true },
+  DOUBLE_PLAY: { id: 'DOUBLE_PLAY', label: '併殺打', symbol: 'DP', batType: 'ground', category: 'out', needsPositions: true, isOut: true, outsCount: 2 },
+  INFIELD_FLY: { id: 'INFIELD_FLY', label: 'インフィールドフライ', symbol: 'IF', batType: 'fly', category: 'out', needsPositions: true, isOut: true },
 
   // Hits
   SINGLE: { id: 'SINGLE', label: '単打', symbol: '━', category: 'hit', needsPositions: true, isOut: false, bases: 1 },

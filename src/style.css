@@ -925,7 +925,7 @@ body {
   background: var(--color-cream);
 }
 
-/* Cell diamond layout for base paths */
+/* Cell diamond layout - SVG based */
 .cell-content {
   width: 100%;
   height: 100%;
@@ -935,79 +935,61 @@ body {
   justify-content: center;
 }
 
-.cell-diamond {
-  width: 40px;
-  height: 40px;
-  position: relative;
-  transform: rotate(45deg);
-}
-
-.cell-diamond .base {
+.cell-svg {
+  width: 100%;
+  height: 100%;
   position: absolute;
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--color-border);
-  background: transparent;
+  inset: 0;
 }
 
-.cell-diamond .base.reached {
-  background: var(--color-red);
-  border-color: var(--color-red);
-}
-
-.cell-diamond .base.scored {
-  background: var(--color-blue);
-  border-color: var(--color-blue);
-}
-
-.cell-diamond .base-1 { bottom: 0; right: 0; }
-.cell-diamond .base-2 { top: 0; right: 0; }
-.cell-diamond .base-3 { top: 0; left: 0; }
-.cell-diamond .base-home { bottom: 0; left: 0; }
-
-.cell-basepath {
+/* Fielding positions - top area of cell */
+.cell-positions {
   position: absolute;
-  background: var(--color-red);
-}
-
-.cell-basepath.active {
-  background: var(--color-red);
-}
-
-.cell-result-text {
-  position: absolute;
-  bottom: 2px;
-  right: 4px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--color-ink);
-  font-family: var(--font-mono);
-}
-
-.cell-out-number {
-  position: absolute;
-  top: 2px;
-  left: 4px;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--color-red);
-  border: 2px solid var(--color-red);
-  border-radius: 50%;
-}
-
-.cell-hit-symbol {
-  position: absolute;
-  bottom: 2px;
+  top: 1px;
   left: 50%;
   transform: translateX(-50%);
   font-size: 0.75rem;
   font-weight: 700;
-  color: var(--color-blue);
+  color: #333;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  z-index: 2;
+}
+
+/* Result symbol for non-position results (strikeouts, walks, etc.) */
+.cell-symbol {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #333;
+  font-family: var(--font-mono);
+  z-index: 2;
+}
+
+/* Hit indicator line at bottom */
+.cell-hit-line {
+  position: absolute;
+  bottom: 1px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1565C0;
+  font-family: var(--font-mono);
+  z-index: 2;
+}
+
+/* Inning ending mark (//) at bottom-right */
+.cell-inning-end {
+  position: absolute;
+  bottom: 0;
+  right: 2px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #333;
+  z-index: 2;
 }
 
 .inning-total-cell {

@@ -218,30 +218,112 @@ function renderCellContent(result) {
   const rt = RESULT_TYPES[result.resultType];
   if (!rt) return '';
 
-  let html = '<div class="cell-content">';
+  const basesReached = result.basesReached || 0;
+  const outNum = result.outNumber || 0;
+  const posText = result.positions || '';
 
-  // Out number
-  if (result.outNumber) {
-    html += `<div class="cell-out-number">${result.outNumber}</div>`;
+  // Roman numerals for outs
+  const ROMAN = ['', 'Ⅰ', 'Ⅱ', 'Ⅲ'];
+
+  // SVG diamond dimensions (viewBox 0 0 80 80)
+  // Diamond points: top(40,6) right(74,40) bottom(40,74) left(6,40)
+  const TOP = '40,6';
+  const RIGHT = '74,40';
+  const BOTTOM = '40,74';
+  const LEFT = '6,40';
+
+  // Base path segments: home→1B, 1B→2B, 2B→3B, 3B→home
+  const paths = [
+    { d: `M${BOTTOM} L${RIGHT}`, active: basesReached >= 1 },   // home → 1B
+    { d: `M${RIGHT} L${TOP}`, active: basesReached >= 2 },      // 1B → 2B
+    { d: `M${TOP} L${LEFT}`, active: basesReached >= 3 },       // 2B → 3B
+    { d: `M${LEFT} L${BOTTOM}`, active: basesReached >= 4 },    // 3B → home
+  ];
+
+  let svg = '<svg class="cell-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">';
+
+  // Diamond outline (gray)
+  svg += `<polygon points="${TOP} ${RIGHT} ${BOTTOM} ${LEFT}" fill="none" stroke="#ccc" stroke-width="1.5"/>`;
+
+  // Active base paths (red)
+  for (const p of paths) {
+    if (p.active) {
+      svg += `<path d="${p.d}" fill="none" stroke="#D32F2F" stroke-width="3"/>`;
+    }
   }
 
-  // Diamond with base paths
-  html += '<div class="cell-diamond">';
-  const basesReached = result.basesReached || 0;
-  html += `<div class="base base-1 ${basesReached >= 1 ? 'reached' : ''}"></div>`;
-  html += `<div class="base base-2 ${basesReached >= 2 ? 'reached' : ''}"></div>`;
-  html += `<div class="base base-3 ${basesReached >= 3 ? 'reached' : ''}"></div>`;
-  html += `<div class="base base-home ${basesReached >= 4 ? 'scored' : ''}"></div>`;
-  html += '</div>';
+  // Base dots at corners
+  const bases = [
+    { cx: 40, cy: 74, isHome: true },   // Home
+    { cx: 74, cy: 40, base: 1 },        // 1B
+    { cx: 40, cy: 6, base: 2 },         // 2B
+    { cx: 6, cy: 40, base: 3 },         // 3B
+  ];
+  for (const b of bases) {
+    if (b.isHome) {
+      // Home plate - small diamond
+      svg += `<polygon points="40,70 44,74 40,78 36,74" fill="#999" stroke="none"/>`;
+    } else {
+      const fill = basesReached >= b.base ? '#D32F2F' : '#ccc';
+      svg += `<rect x="${b.cx - 3}" y="${b.cy - 3}" width="6" height="6" transform="rotate(45 ${b.cx} ${b.cy})" fill="${fill}"/>`;
+    }
+  }
 
-  // Result text
-  const posText = result.positions || '';
-  const symbolText = rt.symbol;
-  html += `<div class="cell-result-text">${posText ? posText + '<br>' : ''}${symbolText}</div>`;
+  // Out number (roman numeral) at center
+  if (outNum > 0 && outNum <= 3) {
+    svg += `<text x="40" y="44" text-anchor="middle" font-size="22" font-weight="700" font-family="serif" fill="#333">${ROMAN[outNum]}</text>`;
+  }
 
-  // Hit symbol at bottom
+  // Scored run marker (red circle at home)
+  if (basesReached >= 4) {
+    svg += `<circle cx="40" cy="62" r="7" fill="#D32F2F"/>`;
+    svg += `<text x="40" y="66" text-anchor="middle" font-size="10" font-weight="700" fill="white">●</text>`;
+  }
+
+  // Bat type indicator under fielder number for outs with positions
+  if (rt.batType && posText) {
+    const firstFielder = posText.split('-')[0];
+    if (rt.batType === 'ground') {
+      // Grounder: horizontal line under the fielder number
+      svg += `<line x1="25" y1="68" x2="55" y2="68" stroke="#333" stroke-width="2"/>`;
+    } else if (rt.batType === 'fly') {
+      // Fly: arc under the fielder number
+      svg += `<path d="M25,68 Q40,60 55,68" fill="none" stroke="#333" stroke-width="1.5"/>`;
+    } else if (rt.batType === 'liner') {
+      // Liner: straight line (like a dash)
+      svg += `<line x1="25" y1="66" x2="55" y2="66" stroke="#333" stroke-width="2.5"/>`;
+    }
+  }
+
+  svg += '</svg>';
+
+  // Build HTML content with overlay text
+  let html = `<div class="cell-content">${svg}`;
+
+  // Position / fielding path (top of cell)
+  if (posText) {
+    html += `<div class="cell-positions">${posText}</div>`;
+  }
+
+  // Result symbol (bottom area for non-position results)
+  if (!posText && rt.symbol) {
+    html += `<div class="cell-symbol">${rt.symbol}</div>`;
+  }
+
+  // Hit indicator bottom line
   if (rt.category === 'hit') {
-    html += `<div class="cell-hit-symbol">${rt.symbol}</div>`;
+    const hitLines = { 1: '━', 2: '═', 3: '≡' };
+    const baseLine = hitLines[rt.bases];
+    if (baseLine) {
+      html += `<div class="cell-hit-line">${baseLine}</div>`;
+    } else if (rt.bases === 4) {
+      html += `<div class="cell-hit-line">HR</div>`;
+    }
+  }
+
+  // Inning-ending mark (3rd out) - double slash
+  if (outNum === 3) {
+    html += `<div class="cell-inning-end">//</div>`;
   }
 
   html += '</div>';
