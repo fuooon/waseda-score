@@ -134,10 +134,40 @@ function renderScoresheetTable(teamKey) {
     playerTd.className = 'player-cell';
     const orderNum = bIdx + 1;
     const posLabel = player.position ? POSITION_SHORT[player.position] || '' : '';
+
+    // Build substitution history
+    const subs = currentGame.getSubstitutionsForSlot(teamKey, bIdx);
+    let subHtml = '';
+    if (subs.length > 0) {
+      subHtml = '<div class="player-subs">';
+      for (const s of subs) {
+        const typeLabel = s.type === 'PH' ? '打' : s.type === 'PR' ? '走' : '守';
+        subHtml += `<div class="player-sub-entry">`;
+        subHtml += `<span class="sub-type-badge">${typeLabel}</span>`;
+        subHtml += `<span class="sub-old-name">${escapeHtml(s.oldPlayer.name)}</span>`;
+        subHtml += `</div>`;
+      }
+      subHtml += '</div>';
+    }
+
     playerTd.innerHTML = `
-      <div class="player-name">${orderNum}. ${escapeHtml(player.name || '---')}</div>
-      <div class="player-detail">${player.number ? '#' + player.number : ''} ${posLabel}</div>
+      <div class="player-name-row">
+        <div>
+          <div class="player-name">${orderNum}. ${escapeHtml(player.name || '---')}</div>
+          <div class="player-detail">${player.number ? '#' + player.number : ''} ${posLabel}</div>
+        </div>
+        <button class="sub-btn" data-team="${teamKey}" data-batter="${bIdx}" title="選手交代">🔄</button>
+      </div>
+      ${subHtml}
     `;
+
+    // Substitution button handler
+    const subBtn = playerTd.querySelector('.sub-btn');
+    subBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openSubstitutionModal(teamKey, bIdx);
+    });
+
     tr.appendChild(playerTd);
 
     // Inning cells
@@ -388,4 +418,103 @@ function escapeHtml(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+// ============================================
+// Substitution Modal
+// ============================================
+
+function openSubstitutionModal(teamKey, batterIdx) {
+  const modal = document.getElementById('substitution-modal');
+  const title = document.getElementById('sub-modal-title');
+  const body = document.getElementById('sub-modal-body');
+  const lineup = currentGame.getLineup(teamKey);
+  const player = lineup[batterIdx] || {};
+
+  title.textContent = `${batterIdx + 1}番 ${player.name || '---'} → 交代`;
+
+  body.innerHTML = `
+    <div class="sub-type-selector">
+      <button class="sub-type-btn selected" data-type="PH">🏏 代打</button>
+      <button class="sub-type-btn" data-type="PR">🏃 代走</button>
+      <button class="sub-type-btn" data-type="DEF">🧤 守備交代</button>
+    </div>
+    <div class="form-group" style="margin-top: 12px;">
+      <label>新しい選手名</label>
+      <input type="text" id="sub-new-name" placeholder="選手名" />
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>背番号</label>
+        <input type="text" id="sub-new-number" placeholder="#" style="width: 60px;" />
+      </div>
+      <div class="form-group">
+        <label>守備位置</label>
+        <select id="sub-new-position">
+          <option value="">そのまま</option>
+          ${Object.entries(POSITION_SHORT).map(([num, label]) => `
+            <option value="${num}">${num}${label}</option>
+          `).join('')}
+        </select>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;">
+      <button id="sub-cancel-btn" class="btn btn-secondary" style="flex:1;">キャンセル</button>
+      <button id="sub-confirm-btn" class="btn btn-primary" style="flex:2;">交代を実行</button>
+    </div>
+  `;
+
+  let selectedType = 'PH';
+
+  body.querySelectorAll('.sub-type-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      body.querySelectorAll('.sub-type-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedType = btn.dataset.type;
+    });
+  });
+
+  body.querySelector('#sub-cancel-btn').addEventListener('click', () => {
+    modal.classList.add('hidden');
+  });
+
+  body.querySelector('#sub-confirm-btn').addEventListener('click', () => {
+    const newName = body.querySelector('#sub-new-name').value.trim();
+    if (!newName) {
+      alert('選手名を入力してください');
+      return;
+    }
+
+    const newNumber = body.querySelector('#sub-new-number').value.trim();
+    const newPosition = body.querySelector('#sub-new-position').value;
+
+    const sub = {
+      type: selectedType,
+      teamKey,
+      inning: currentGame.currentInning,
+      batterIdx,
+      oldPlayer: {
+        name: player.name,
+        number: player.number,
+        position: player.position,
+      },
+      newPlayer: {
+        name: newName,
+        number: newNumber,
+        position: newPosition || player.position,
+      },
+    };
+
+    currentGame.addSubstitution(sub);
+    saveGame(currentGame);
+    modal.classList.add('hidden');
+    updateScoresheet();
+  });
+
+  document.getElementById('close-sub-modal').onclick = () => {
+    modal.classList.add('hidden');
+  };
+
+  modal.classList.remove('hidden');
+  body.querySelector('#sub-new-name').focus();
 }

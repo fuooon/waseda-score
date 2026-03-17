@@ -97,7 +97,25 @@ class GameData {
     this.currentInning = 1;
     this.currentHalf = 'top'; // 'top' = first team batting, 'bottom' = second team
     this.outsInInning = 0;
+    // substitutions: [{type: 'PH'|'PR'|'DEF', teamKey, inning, batterIdx, newPlayer: {name, number, position}, oldPlayer: {name, number, position}}]
     this.substitutions = [];
+  }
+
+  addSubstitution(sub) {
+    this.substitutions.push(sub);
+    // Update lineup
+    const lineup = this.getLineup(sub.teamKey);
+    if (lineup[sub.batterIdx]) {
+      lineup[sub.batterIdx].name = sub.newPlayer.name;
+      lineup[sub.batterIdx].number = sub.newPlayer.number || '';
+      if (sub.newPlayer.position) {
+        lineup[sub.batterIdx].position = sub.newPlayer.position;
+      }
+    }
+  }
+
+  getSubstitutionsForSlot(teamKey, batterIdx) {
+    return this.substitutions.filter(s => s.teamKey === teamKey && s.batterIdx === batterIdx);
   }
 
   getTeamName(teamKey) {
