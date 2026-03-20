@@ -123,9 +123,16 @@ function renderScoresheetTable(teamKey) {
   }
 
   // Total columns
-  ['安', '打点', '残'].forEach(label => {
+  const statsCols = [
+    { label: '安', width: '36px' },
+    { label: '点', width: '36px' }, // Shortened to 打点 -> 点 to save space
+    { label: '残', width: '36px' }
+  ];
+  statsCols.forEach(col => {
     const th = document.createElement('th');
-    th.textContent = label;
+    th.textContent = col.label;
+    th.style.width = col.width;
+    th.style.minWidth = col.width;
     th.style.background = 'var(--color-accent)';
     headerRow.appendChild(th);
   });
@@ -210,10 +217,13 @@ function renderScoresheetTable(teamKey) {
     const rbis = countPlayerRBIs(teamKey, bIdx);
     const lob = countPlayerLOB(teamKey, bIdx);
 
-    [hits, rbis, lob].forEach((val, ci) => {
+    const statVals = [hits, rbis, lob];
+    const statWidths = ['36px', '36px', '36px'];
+
+    statVals.forEach((val, ci) => {
       const td = document.createElement('td');
       td.className = ci === 0 ? 'inning-total-cell' : '';
-      td.style.cssText = 'width: 36px; font-size: 0.85rem; font-weight: 600;';
+      td.style.cssText = `width: ${statWidths[ci]}; min-width: ${statWidths[ci]}; font-size: 0.85rem; font-weight: 600;`;
       td.textContent = val || '';
       tr.appendChild(td);
     });
@@ -243,7 +253,7 @@ function renderScoresheetTable(teamKey) {
   const totalRuns = currentGame.getTotalRuns(teamKey);
   [totalHits, totalRuns, ''].forEach(val => {
     const td = document.createElement('td');
-    td.style.cssText = 'font-weight: 700; font-size:0.85rem;';
+    td.style.cssText = 'font-weight: 700; font-size: 0.85rem; width: 36px; min-width: 36px;';
     td.textContent = val || '';
     totalRow.appendChild(td);
   });
@@ -336,7 +346,10 @@ function renderCellContent(result) {
   }
 
   if (rt && !posText && rt.symbol) {
-    html += `<div class="cell-symbol">${rt.symbol}</div>`;
+    // Avoid redundant "HR" if already showing it in the hit line section
+    if (!(rt.bases === 4 && (rt.symbol === 'HR' || rt.symbol === '本'))) {
+      html += `<div class="cell-symbol">${rt.symbol}</div>`;
+    }
   }
 
   if (rt?.category === 'hit') {
@@ -543,7 +556,6 @@ function openGameSettings() {
   document.getElementById('edit-team-first').value = currentGame.teamFirst || '';
   document.getElementById('edit-team-second').value = currentGame.teamSecond || '';
   document.getElementById('edit-game-field').value = currentGame.field || '';
-  document.getElementById('edit-game-innings').value = String(currentGame.innings || 7);
   document.getElementById('edit-start-time').value = currentGame.startTime || '';
   document.getElementById('edit-end-time').value = currentGame.endTime || '';
 
@@ -556,7 +568,6 @@ function openGameSettings() {
     currentGame.teamFirst = document.getElementById('edit-team-first').value.trim();
     currentGame.teamSecond = document.getElementById('edit-team-second').value.trim();
     currentGame.field = document.getElementById('edit-game-field').value.trim();
-    currentGame.innings = parseInt(document.getElementById('edit-game-innings').value, 10);
     currentGame.startTime = document.getElementById('edit-start-time').value || '';
     currentGame.endTime = document.getElementById('edit-end-time').value || '';
 

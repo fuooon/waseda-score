@@ -70,7 +70,7 @@ function handleSubmit(e) {
   game.teamFirst = document.getElementById('team-first').value.trim();
   game.teamSecond = document.getElementById('team-second').value.trim();
   game.field = document.getElementById('game-field').value.trim();
-  game.innings = parseInt(document.getElementById('game-innings').value, 10);
+  game.innings = 9;
   game.useDH = document.getElementById('game-dh').checked;
   game.startTime = document.getElementById('game-start-time').value || '';
   game.endTime = document.getElementById('game-end-time').value || '';
