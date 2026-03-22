@@ -280,87 +280,51 @@ function renderCellContent(result) {
   // Roman numerals for outs
   const ROMAN = ['', 'Ⅰ', 'Ⅱ', 'Ⅲ'];
 
-  // SVG diamond dimensions (viewBox 0 0 80 80)
-  const TOP = '40,6';
-  const RIGHT = '74,40';
-  const BOTTOM = '40,74';
-  const LEFT = '6,40';
+  let html = `<div class="cell-content">`;
 
-  // Base path segments
-  const paths = [
-    { d: `M${BOTTOM} L${RIGHT}`, active: basesReached >= 1 },
-    { d: `M${RIGHT} L${TOP}`, active: basesReached >= 2 },
-    { d: `M${TOP} L${LEFT}`, active: basesReached >= 3 },
-    { d: `M${LEFT} L${BOTTOM}`, active: basesReached >= 4 },
-  ];
+  // Draw traditional background lines using CSS divs
+  html += `<div class="bg-line line-v-main"></div>`;
+  html += `<div class="bg-line line-h-cross"></div>`;
+  html += `<div class="bg-line line-v-cross"></div>`;
 
-  let svg = '<svg class="cell-svg" viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg">';
-  svg += `<polygon points="${TOP} ${RIGHT} ${BOTTOM} ${LEFT}" fill="none" stroke="#ccc" stroke-width="1.5"/>`;
+  // Diamond classes for base paths
+  let diamondClasses = 'diamond-graphic';
+  if (basesReached >= 1) diamondClasses += ' b1';
+  if (basesReached >= 2) diamondClasses += ' b2';
+  if (basesReached >= 3) diamondClasses += ' b3';
+  if (basesReached >= 4) diamondClasses += ' b4';
+  if (basesReached >= 4) diamondClasses += ' hr'; // For center circle
 
-  for (const p of paths) {
-    if (p.active) {
-      svg += `<path d="${p.d}" fill="none" stroke="#D32F2F" stroke-width="3"/>`;
-    }
+  html += `<div class="${diamondClasses}"></div>`;
+
+  // Out number inside diamond
+  if (outNum > 0 && ROMAN[outNum]) {
+    html += `<div class="out-number-text">${ROMAN[outNum]}</div>`;
   }
 
-  const bases = [
-    { cx: 40, cy: 74, isHome: true },
-    { cx: 74, cy: 40, base: 1 },
-    { cx: 40, cy: 6, base: 2 },
-    { cx: 6, cy: 40, base: 3 },
-  ];
-  for (const b of bases) {
-    if (b.isHome) {
-      svg += `<polygon points="40,70 44,74 40,78 36,74" fill="#999" stroke="none"/>`;
-    } else {
-      const fill = basesReached >= b.base ? '#D32F2F' : '#ccc';
-      svg += `<rect x="${b.cx - 3}" y="${b.cy - 3}" width="6" height="6" transform="rotate(45 ${b.cx} ${b.cy})" fill="${fill}"/>`;
-    }
-  }
 
-  if (outNum > 0 && outNum <= 3) {
-    svg += `<text x="40" y="44" text-anchor="middle" font-size="22" font-weight="700" font-family="serif" fill="#333">${ROMAN[outNum]}</text>`;
-  }
-
-  if (basesReached >= 4) {
-    svg += `<circle cx="40" cy="62" r="7" fill="#D32F2F"/>`;
-    svg += `<text x="40" y="66" text-anchor="middle" font-size="10" font-weight="700" fill="white">●</text>`;
-  }
-
-  if (rt?.batType && posText) {
-    if (rt.batType === 'ground') {
-      svg += `<line x1="25" y1="68" x2="55" y2="68" stroke="#333" stroke-width="2"/>`;
-    } else if (rt.batType === 'fly') {
-      svg += `<path d="M25,68 Q40,60 55,68" fill="none" stroke="#333" stroke-width="1.5"/>`;
-    } else if (rt.batType === 'liner') {
-      svg += `<line x1="25" y1="66" x2="55" y2="66" stroke="#333" stroke-width="2.5"/>`;
-    }
-  }
-
-  svg += '</svg>';
-
-  let html = `<div class="cell-content">${svg}`;
 
   if (posText) {
-    html += `<div class="cell-positions">${posText}</div>`;
-  }
+    let formattedPosText = posText;
+    if (rt?.batType && posText.length > 0) {
+      const firstChar = posText.charAt(0);
+      const rest = posText.substring(1);
+      const trajClass = `traj-${rt.batType}`;
+      formattedPosText = `<span class="traj-mark ${trajClass}">${firstChar}</span>${rest}`;
+    }
 
+    const isHit = rt?.category === 'hit';
+    const textColor = isHit ? '#D32F2F' : '#333';
+    
+    html += `<div class="cell-positions" style="color: ${textColor}">${formattedPosText}</div>`;
+  }
   if (rt && !posText && rt.symbol) {
-    // Avoid redundant "HR" if already showing it in the hit line section
-    if (!(rt.bases === 4 && (rt.symbol === 'HR' || rt.symbol === '本'))) {
+    // Avoid redundant symbols if it's a hit (cell-hit-line will show the line or HR)
+    if (rt.category !== 'hit') {
       html += `<div class="cell-symbol">${rt.symbol}</div>`;
     }
   }
 
-  if (rt?.category === 'hit') {
-    const hitLines = { 1: '━', 2: '═', 3: '≡' };
-    const baseLine = hitLines[rt.bases];
-    if (baseLine) {
-      html += `<div class="cell-hit-line">${baseLine}</div>`;
-    } else if (rt.bases === 4) {
-      html += `<div class="cell-hit-line">HR</div>`;
-    }
-  }
 
   if (outNum === 3) {
     html += `<div class="cell-inning-end">//</div>`;

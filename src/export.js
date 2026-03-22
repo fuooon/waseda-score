@@ -30,8 +30,42 @@ async function exportFull() {
   const container = document.getElementById('scoresheet-container');
   if (!container) return;
 
+  const exportWrapper = document.createElement('div');
+  exportWrapper.style.padding = '32px';
+  exportWrapper.style.backgroundColor = '#FFFEF9';
+  exportWrapper.style.position = 'absolute';
+  exportWrapper.style.left = '-9999px';
+  exportWrapper.style.top = '-9999px';
+  exportWrapper.style.display = 'flex';
+  exportWrapper.style.flexDirection = 'column';
+
+  const headerArea = document.createElement('div');
+  headerArea.style.display = 'flex';
+  headerArea.style.justifyContent = 'space-between';
+  headerArea.style.marginBottom = '24px';
+  headerArea.style.alignItems = 'flex-start';
+
+  const titleArea = document.createElement('div');
+  const dateStr = currentGame?.date ? new Date(currentGame.date).toLocaleDateString('ja-JP') : '';
+  const fieldStr = currentGame?.field || '';
+  titleArea.innerHTML = `<h2 style="margin:0;color:#2C2416;font-size:24px;">試合スコア</h2><p style="margin:8px 0 0 0;color:#5A4E3C;font-size:16px;">${dateStr} ${fieldStr}</p>`;
+  
+  const boardArea = document.createElement('div');
+  boardArea.innerHTML = renderScoreboardForExport(currentGame);
+  boardArea.style.transform = 'scale(0.85)';
+  boardArea.style.transformOrigin = 'top right';
+
+  headerArea.appendChild(titleArea);
+  headerArea.appendChild(boardArea);
+
+  const containerClone = container.cloneNode(true);
+  
+  exportWrapper.appendChild(headerArea);
+  exportWrapper.appendChild(containerClone);
+  document.body.appendChild(exportWrapper);
+
   try {
-    const canvas = await html2canvas(container, {
+    const canvas = await html2canvas(exportWrapper, {
       backgroundColor: '#FFFEF9',
       scale: 2,
       useCORS: true,
@@ -41,8 +75,13 @@ async function exportFull() {
   } catch (err) {
     console.error('Export error:', err);
     alert('画像の生成に失敗しました');
+  } finally {
+    if (exportWrapper.parentNode) {
+      exportWrapper.parentNode.removeChild(exportWrapper);
+    }
   }
 }
+
 
 async function exportBoard() {
   // Create temp element with styled scoreboard
