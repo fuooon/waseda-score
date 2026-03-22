@@ -316,7 +316,15 @@ function renderCellContent(result) {
     const isHit = rt?.category === 'hit';
     const textColor = isHit ? '#D32F2F' : '#333';
     
-    html += `<div class="cell-positions" style="color: ${textColor}">${formattedPosText}</div>`;
+    let innerHtml = formattedPosText;
+    if (result.resultType === 'SACRIFICE_BUNT') {
+      innerHtml = `<div class="sac-bunt-wrap">${formattedPosText}</div>`;
+    } else if (result.resultType === 'SACRIFICE_FLY') {
+      // Create a triangle SVG that scales with the text bounds
+      innerHtml = `<div class="sac-fly-wrap"><svg viewBox="0 0 26 26" preserveAspectRatio="none"><polygon points="13,2 2,24 24,24" fill="none" stroke="var(--color-blue)" stroke-width="1.5"/></svg><span>${formattedPosText}</span></div>`;
+    }
+    
+    html += `<div class="cell-positions" style="color: ${textColor}">${innerHtml}</div>`;
   }
   if (rt && !posText && rt.symbol) {
     // Avoid redundant symbols if it's a hit (cell-hit-line will show the line or HR)
