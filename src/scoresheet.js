@@ -21,8 +21,6 @@ export function initScoresheet(game) {
   applyVisibleTeam();
 
   // onclick assignments so returning to the scoresheet doesn't stack listeners
-  document.getElementById('prev-inning-btn').onclick = prevInning;
-  document.getElementById('next-inning-btn').onclick = nextInning;
   document.getElementById('add-inning-btn').onclick = addInning;
   document.getElementById('game-settings-btn').onclick = openGameSettings;
   document.getElementById('sheet-tab-first').onclick = () => setVisibleTeam('first');
@@ -54,32 +52,6 @@ function applyVisibleTeam() {
       tab.textContent = name ? `${side} ${name}` : side;
     }
   }
-}
-
-function prevInning() {
-  if (currentGame.currentHalf === 'bottom') {
-    currentGame.currentHalf = 'top';
-  } else if (currentGame.currentInning > 1) {
-    currentGame.currentInning--;
-    currentGame.currentHalf = 'bottom';
-  }
-  currentGame.outsInInning = 0;
-  saveGame(currentGame);
-  visibleTeam = currentGame.getBattingTeam();
-  updateScoresheet();
-}
-
-function nextInning() {
-  if (currentGame.currentHalf === 'top') {
-    currentGame.currentHalf = 'bottom';
-  } else if (currentGame.currentInning < 12) {
-    currentGame.currentInning++;
-    currentGame.currentHalf = 'top';
-  }
-  currentGame.outsInInning = 0;
-  saveGame(currentGame);
-  visibleTeam = currentGame.getBattingTeam();
-  updateScoresheet();
 }
 
 function addInning() {
@@ -382,14 +354,6 @@ function renderCellContent(result) {
 function handleCellClick(teamKey, inning, batterIdx) {
   initScoreInput(currentGame, teamKey, inning, batterIdx, (result) => {
     if (result) {
-      // Calculate out number
-      if (result.resultType && RESULT_TYPES[result.resultType]?.isOut) {
-        currentGame.outsInInning++;
-        result.outNumber = currentGame.outsInInning;
-        if (currentGame.outsInInning >= 3) {
-          currentGame.outsInInning = 0;
-        }
-      }
       currentGame.setAtBat(teamKey, inning, batterIdx, result);
     } else {
       // Clear the cell
@@ -397,9 +361,45 @@ function handleCellClick(teamKey, inning, batterIdx) {
         delete currentGame.atBats[teamKey][inning][batterIdx];
       }
     }
+    renumberOuts(teamKey);
+    // The inning label and highlight follow the last-edited cell
+    currentGame.currentInning = inning;
+    currentGame.currentHalf = teamKey === 'first' ? 'top' : 'bottom';
+    visibleTeam = teamKey;
     saveGame(currentGame);
     updateScoresheet();
   });
+}
+
+// Derive out numbers (Ⅰ/Ⅱ/Ⅲ) from the recorded results instead of a manual
+// counter. Within each inning batters are ordered cyclically from the
+// inning's leadoff, which carries over from the previous inning's last batter.
+function renumberOuts(teamKey) {
+  const numBatters = currentGame.getLineup(teamKey).length || 9;
+  let leadoff = 0;
+  for (let inning = 1; inning <= 12; inning++) {
+    const inningData = currentGame.atBats[teamKey][inning];
+    if (!inningData) continue;
+    const battingOrder = Object.keys(inningData)
+      .map(k => parseInt(k, 10))
+      .filter(idx => inningData[idx])
+      .sort((a, b) =>
+        ((a - leadoff + numBatters) % numBatters) - ((b - leadoff + numBatters) % numBatters)
+      );
+    if (battingOrder.length === 0) continue;
+    let outs = 0;
+    for (const idx of battingOrder) {
+      const result = inningData[idx];
+      const rt = result.resultType ? RESULT_TYPES[result.resultType] : null;
+      if (rt?.isOut) {
+        outs += rt.outsCount || 1;
+        result.outNumber = Math.min(outs, 3);
+      } else {
+        result.outNumber = null;
+      }
+    }
+    leadoff = (battingOrder[battingOrder.length - 1] + 1) % numBatters;
+  }
 }
 
 function hasDataInInning(teamKey, inning) {
