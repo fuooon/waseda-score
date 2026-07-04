@@ -1,0 +1,72 @@
+name: Deploy branch preview to GitHub Pages
+
+# Deploys non-master branches to /waseda-score/preview/ for testing on
+# real devices, while keeping master served at /waseda-score/.
+# GitHub Pages serves a single site, so the preview slot always holds
+# the most recently pushed branch.
+
+on:
+  push:
+    branches-ignore: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: branch
+
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          path: master
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build master (production copy)
+        run: |
+          cd master
+          npm ci
+          npm run build
+
+      - name: Build branch preview
+        run: |
+          cd branch
+          npm ci
+          npm run build -- --base=/waseda-score/preview/
+
+      - name: Combine site
+        run: |
+          mkdir -p site/preview
+          cp -r master/dist/. site/
+          cp -r branch/dist/. site/preview/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
