@@ -26,6 +26,7 @@ function showPage(pageId) {
     page.offsetHeight; // reflow
     page.style.animation = '';
   }
+  window.scrollTo(0, 0);
 
   // Show/hide export button
   const exportBtn = document.getElementById('export-btn');

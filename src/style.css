@@ -786,6 +786,22 @@ body {
   text-align: center;
 }
 
+.sheet-team-tabs {
+  display: flex;
+  background: var(--color-cream-dark);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+  margin: var(--sp-sm) var(--sp-md) 0;
+}
+
+.sheet-team-tabs .tab {
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .score-summary {
   display: flex;
   gap: 2px;

@@ -28,6 +28,9 @@ Flows worth driving:
 
 - First load lands on the scoresheet (`#page-scoresheet.active`); a blank
   game is auto-created if localStorage is empty.
+- The scoresheet shows one team at a time: `#sheet-tab-first` / `#sheet-tab-second`
+  toggle the visible sheet; inning navigation auto-switches to the batting team.
+  Full image export must include BOTH teams (export.js unhides the clone).
 - Hamburger menu (`#menu-btn`) → `.menu-item[data-page=...]` navigates:
   `scoresheet`, `game-setup` (試合情報), `lineup`, `new-game` (confirm dialog!),
   `team-members`, `help`.

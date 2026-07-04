@@ -60,7 +60,11 @@ async function exportFull() {
   headerArea.appendChild(boardArea);
 
   const containerClone = container.cloneNode(true);
-  
+  // The on-screen sheet shows one team at a time; the export shows both
+  containerClone.querySelectorAll('[id^="scoresheet-"]').forEach(el => {
+    el.style.display = '';
+  });
+
   exportWrapper.appendChild(headerArea);
   exportWrapper.appendChild(containerClone);
   document.body.appendChild(exportWrapper);

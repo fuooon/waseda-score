@@ -7,19 +7,26 @@ import { initScoreInput } from './score-input.js';
 import { renderScoreboard } from './scoreboard.js';
 
 let currentGame = null;
+// Which team's sheet is visible; follows the batting team on inning change,
+// but can be overridden with the 先攻/後攻 tabs to peek at the other side.
+let visibleTeam = 'first';
 
 export function initScoresheet(game) {
   currentGame = game;
+  visibleTeam = game.getBattingTeam();
   renderScoresheetTable('first');
   renderScoresheetTable('second');
   updateInningLabel();
   renderScoreSummary();
+  applyVisibleTeam();
 
   // onclick assignments so returning to the scoresheet doesn't stack listeners
   document.getElementById('prev-inning-btn').onclick = prevInning;
   document.getElementById('next-inning-btn').onclick = nextInning;
   document.getElementById('add-inning-btn').onclick = addInning;
   document.getElementById('game-settings-btn').onclick = openGameSettings;
+  document.getElementById('sheet-tab-first').onclick = () => setVisibleTeam('first');
+  document.getElementById('sheet-tab-second').onclick = () => setVisibleTeam('second');
 }
 
 export function updateScoresheet() {
@@ -27,6 +34,26 @@ export function updateScoresheet() {
   renderScoresheetTable('second');
   updateInningLabel();
   renderScoreSummary();
+  applyVisibleTeam();
+}
+
+function setVisibleTeam(teamKey) {
+  visibleTeam = teamKey;
+  applyVisibleTeam();
+}
+
+function applyVisibleTeam() {
+  for (const key of ['first', 'second']) {
+    const sheet = document.getElementById(`scoresheet-${key}`);
+    if (sheet) sheet.style.display = key === visibleTeam ? '' : 'none';
+    const tab = document.getElementById(`sheet-tab-${key}`);
+    if (tab) {
+      tab.classList.toggle('active', key === visibleTeam);
+      const name = currentGame.getTeamName(key);
+      const side = key === 'first' ? '先攻' : '後攻';
+      tab.textContent = name ? `${side} ${name}` : side;
+    }
+  }
 }
 
 function prevInning() {
@@ -38,8 +65,8 @@ function prevInning() {
   }
   currentGame.outsInInning = 0;
   saveGame(currentGame);
-  updateInningLabel();
-  renderScoreSummary();
+  visibleTeam = currentGame.getBattingTeam();
+  updateScoresheet();
 }
 
 function nextInning() {
@@ -51,8 +78,8 @@ function nextInning() {
   }
   currentGame.outsInInning = 0;
   saveGame(currentGame);
-  updateInningLabel();
-  renderScoreSummary();
+  visibleTeam = currentGame.getBattingTeam();
+  updateScoresheet();
 }
 
 function addInning() {
