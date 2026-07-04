@@ -15,17 +15,22 @@ export function initLineup(game, callbacks) {
   onComplete = callbacks.onComplete;
   onBack = callbacks.onBack;
 
+  currentTeam = 'first';
+  document.getElementById('lineup-tab-first').classList.add('active');
+  document.getElementById('lineup-tab-second').classList.remove('active');
+
   renderLineup();
   bindEvents();
 }
 
+// onclick assignments so re-opening the page doesn't stack listeners
 function bindEvents() {
-  document.getElementById('lineup-tab-first').addEventListener('click', () => switchTeam('first'));
-  document.getElementById('lineup-tab-second').addEventListener('click', () => switchTeam('second'));
-  document.getElementById('lineup-start-btn').addEventListener('click', handleStart);
-  document.getElementById('lineup-back-btn').addEventListener('click', () => {
+  document.getElementById('lineup-tab-first').onclick = () => switchTeam('first');
+  document.getElementById('lineup-tab-second').onclick = () => switchTeam('second');
+  document.getElementById('lineup-start-btn').onclick = handleStart;
+  document.getElementById('lineup-back-btn').onclick = () => {
     if (onBack) onBack();
-  });
+  };
 }
 
 function switchTeam(team) {
@@ -44,7 +49,8 @@ function renderLineup() {
   const lineup = currentGame.getLineup(currentTeam);
   const numBatters = currentGame.useDH ? 10 : 9;
 
-  let html = `<div class="form-card"><h3>${escapeHtml(teamName)} - 打順</h3>`;
+  const teamLabel = teamName || (currentTeam === 'first' ? '先攻チーム' : '後攻チーム');
+  let html = `<div class="form-card"><h3>${escapeHtml(teamLabel)} - 打順</h3>`;
 
   for (let i = 0; i < numBatters; i++) {
     const existing = lineup[i] || {};

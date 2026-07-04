@@ -10,7 +10,7 @@ export function renderScoreboard(container, game) {
 
   // Team rows
   ['first', 'second'].forEach(teamKey => {
-    const teamName = game.getTeamName(teamKey);
+    const teamName = game.getTeamName(teamKey) || (teamKey === 'first' ? '先攻' : '後攻');
     html += '<div class="score-summary-team">';
     html += `<div class="score-summary-name">${escapeHtml(teamName)}</div>`;
     html += '<div class="score-summary-runs">';
@@ -58,7 +58,7 @@ export function renderScoreboardForExport(game) {
   html += '</tr></thead><tbody>';
 
   ['first', 'second'].forEach(teamKey => {
-    const teamName = game.getTeamName(teamKey);
+    const teamName = game.getTeamName(teamKey) || (teamKey === 'first' ? '先攻' : '後攻');
     const bgColor = teamKey === 'first' ? '#FDF6E3' : '#FFFEF9';
     html += `<tr style="background: ${bgColor};">`;
     html += `<td style="padding: 8px 12px; font-weight: 600; border: 1px solid #D4C9B4; white-space: nowrap;">${escapeHtml(teamName)}</td>`;

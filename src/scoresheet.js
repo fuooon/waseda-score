@@ -15,10 +15,11 @@ export function initScoresheet(game) {
   updateInningLabel();
   renderScoreSummary();
 
-  document.getElementById('prev-inning-btn').addEventListener('click', prevInning);
-  document.getElementById('next-inning-btn').addEventListener('click', nextInning);
-  document.getElementById('add-inning-btn').addEventListener('click', addInning);
-  document.getElementById('game-settings-btn').addEventListener('click', openGameSettings);
+  // onclick assignments so returning to the scoresheet doesn't stack listeners
+  document.getElementById('prev-inning-btn').onclick = prevInning;
+  document.getElementById('next-inning-btn').onclick = nextInning;
+  document.getElementById('add-inning-btn').onclick = addInning;
+  document.getElementById('game-settings-btn').onclick = openGameSettings;
 }
 
 export function updateScoresheet() {

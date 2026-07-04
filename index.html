@@ -43,7 +43,10 @@
         </button>
       </div>
       <ul class="menu-list">
-        <li><button class="menu-item" data-page="game-setup">🏟️ 新しい試合</button></li>
+        <li><button class="menu-item" data-page="scoresheet">📝 スコアシート</button></li>
+        <li><button class="menu-item" data-page="game-setup">📋 試合情報</button></li>
+        <li><button class="menu-item" data-page="lineup">🧢 スタメン登録</button></li>
+        <li><button class="menu-item" data-page="new-game">🏟️ 新しい試合</button></li>
         <li><button class="menu-item" data-page="team-members">👥 メンバー管理</button></li>
         <li><button class="menu-item" data-page="help">❓ 記号ガイド</button></li>
       </ul>
@@ -93,10 +96,6 @@
                 <label for="game-start-time">開始時刻</label>
                 <input type="time" id="game-start-time" />
               </div>
-              <div class="form-group">
-                <label for="game-end-time">終了時刻</label>
-                <input type="time" id="game-end-time" />
-              </div>
             </div>
             <div class="form-group">
               <label class="checkbox-label">
@@ -133,7 +132,7 @@
               </div>
             </div>
             <button type="submit" class="btn btn-primary btn-large">
-              スタメン登録へ →
+              保存してスコアへ →
             </button>
           </form>
         </div>
@@ -246,7 +245,7 @@
           </div>
           <div class="lineup-actions">
             <button id="lineup-back-btn" class="btn btn-secondary">← 戻る</button>
-            <button id="lineup-start-btn" class="btn btn-primary btn-large">記録開始 ⚾</button>
+            <button id="lineup-start-btn" class="btn btn-primary btn-large">保存してスコアへ ⚾</button>
           </div>
         </div>
       </section>
@@ -259,6 +258,7 @@
             <span id="current-inning-label">1回表</span>
             <button id="next-inning-btn" class="icon-btn-small">▶</button>
             <button id="add-inning-btn" class="icon-btn-small" title="イニング追加">＋</button>
+            <button id="lineup-btn" class="icon-btn-small" title="スタメン登録">🧢</button>
             <button id="game-settings-btn" class="icon-btn-small" title="試合設定">⚙️</button>
           </div>
           <div class="score-summary" id="score-summary">

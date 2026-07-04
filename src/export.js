@@ -10,11 +10,12 @@ let currentGame = null;
 export function initExport(game) {
   currentGame = game;
 
+  // onclick assignments so re-init on each scoresheet visit doesn't stack listeners
   document.getElementById('export-btn').style.display = '';
-  document.getElementById('export-btn').addEventListener('click', openExportModal);
-  document.getElementById('close-export-btn').addEventListener('click', closeExportModal);
-  document.getElementById('export-full-btn').addEventListener('click', exportFull);
-  document.getElementById('export-board-btn').addEventListener('click', exportBoard);
+  document.getElementById('export-btn').onclick = openExportModal;
+  document.getElementById('close-export-btn').onclick = closeExportModal;
+  document.getElementById('export-full-btn').onclick = exportFull;
+  document.getElementById('export-board-btn').onclick = exportBoard;
 }
 
 function openExportModal() {

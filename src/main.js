@@ -3,11 +3,11 @@
 // ============================================
 
 import './style.css';
-import { loadGame, saveGame, clearGame } from './data.js';
+import { GameData, loadGame, saveGame, clearGame } from './data.js';
 import { initTeamMembers } from './team-members.js';
-import { initGameSetup } from './game-setup.js';
+import { initGameSetup, openGameSetup } from './game-setup.js';
 import { initLineup } from './lineup.js';
-import { initScoresheet, updateScoresheet } from './scoresheet.js';
+import { initScoresheet } from './scoresheet.js';
 import { initExport } from './export.js';
 
 let currentGame = null;
@@ -32,6 +32,55 @@ function showPage(pageId) {
   if (exportBtn) {
     exportBtn.style.display = pageId === 'scoresheet' ? '' : 'none';
   }
+}
+
+function showScoresheet() {
+  showPage('scoresheet');
+  initScoresheet(currentGame);
+  initExport(currentGame);
+}
+
+function showLineup() {
+  showPage('lineup');
+  initLineup(currentGame, {
+    onComplete: (game) => {
+      currentGame = game;
+      showScoresheet();
+    },
+    onBack: () => {
+      showScoresheet();
+    }
+  });
+}
+
+function showGameSetup() {
+  openGameSetup(currentGame);
+  showPage('game-setup');
+}
+
+// ============================================
+// Game Lifecycle
+// ============================================
+
+function createBlankGame() {
+  const game = new GameData();
+  game.date = new Date().toISOString().split('T')[0];
+  game.innings = 9;
+  for (const key of ['first', 'second']) {
+    const lineup = game.getLineup(key);
+    while (lineup.length < 9) {
+      lineup.push({ name: '', number: '', position: '', bat: 'right', memberId: '' });
+    }
+  }
+  return game;
+}
+
+function startNewGame() {
+  if (!confirm('現在の試合データを削除して、新しい試合を始めますか？')) return;
+  clearGame();
+  currentGame = createBlankGame();
+  saveGame(currentGame);
+  showScoresheet();
 }
 
 // ============================================
@@ -63,53 +112,36 @@ function init() {
     item.addEventListener('click', () => {
       const page = item.dataset.page;
       closeMenu();
-      if (page === 'game-setup') {
-        // Start new game
-        clearGame();
-        currentGame = null;
-        showPage('game-setup');
+      if (page === 'new-game') {
+        startNewGame();
+      } else if (page === 'game-setup') {
+        showGameSetup();
+      } else if (page === 'lineup') {
+        showLineup();
+      } else if (page === 'scoresheet') {
+        showScoresheet();
       } else {
         showPage(page);
       }
     });
   });
 
+  // Lineup shortcut on the scoresheet header
+  document.getElementById('lineup-btn').addEventListener('click', showLineup);
+
   // Init team members (always available)
   initTeamMembers();
 
-  // Init game setup
+  // Init game setup form (saving returns to the scoresheet)
   initGameSetup((game) => {
     currentGame = game;
-    showPage('lineup');
-    initLineup(game, {
-      onComplete: (game) => {
-        currentGame = game;
-        showPage('scoresheet');
-        initScoresheet(game);
-        initExport(game);
-      },
-      onBack: () => {
-        showPage('game-setup');
-      }
-    });
+    showScoresheet();
   });
 
-  // Try to resume existing game
-  const savedGame = loadGame();
-  if (savedGame && savedGame.lineupFirst && savedGame.lineupFirst.length > 0) {
-    currentGame = savedGame;
-
-    // Check if we have lineup data to go straight to scoresheet
-    if (savedGame.lineupSecond && savedGame.lineupSecond.length > 0) {
-      showPage('scoresheet');
-      initScoresheet(currentGame);
-      initExport(currentGame);
-    } else {
-      showPage('game-setup');
-    }
-  } else {
-    showPage('game-setup');
-  }
+  // Load saved game, or start a blank one — the scoresheet is the home screen
+  currentGame = loadGame() || createBlankGame();
+  saveGame(currentGame);
+  showScoresheet();
 }
 
 // Start
