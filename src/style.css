@@ -786,6 +786,27 @@ body {
   text-align: center;
 }
 
+.add-inning-inline-btn {
+  margin-left: 4px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  color: white;
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.add-inning-inline-btn:active {
+  background: rgba(255, 255, 255, 0.5);
+}
+
 .sheet-team-tabs {
   display: flex;
   background: var(--color-cream-dark);

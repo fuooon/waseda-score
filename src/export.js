@@ -64,6 +64,8 @@ async function exportFull() {
   containerClone.querySelectorAll('[id^="scoresheet-"]').forEach(el => {
     el.style.display = '';
   });
+  // UI-only controls don't belong in the exported image
+  containerClone.querySelectorAll('.add-inning-inline-btn').forEach(el => el.remove());
 
   exportWrapper.appendChild(headerArea);
   exportWrapper.appendChild(containerClone);

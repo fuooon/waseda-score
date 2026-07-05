@@ -22,7 +22,6 @@ export function initScoresheet(game) {
   applyVisibleTeam();
 
   // onclick assignments so returning to the scoresheet doesn't stack listeners
-  document.getElementById('add-inning-btn').onclick = addInning;
   document.getElementById('game-settings-btn').onclick = openGameSettings;
   document.getElementById('sheet-tab-first').onclick = () => setVisibleTeam('first');
   document.getElementById('sheet-tab-second').onclick = () => setVisibleTeam('second');
@@ -127,6 +126,15 @@ function renderScoresheetTable(teamKey) {
   for (let i = 1; i <= innings; i++) {
     const th = document.createElement('th');
     th.textContent = i;
+    // Add-inning button lives next to the last inning number
+    if (i === innings && innings < 12) {
+      const addBtn = document.createElement('button');
+      addBtn.className = 'add-inning-inline-btn';
+      addBtn.title = 'イニング追加';
+      addBtn.textContent = '＋';
+      addBtn.addEventListener('click', addInning);
+      th.appendChild(addBtn);
+    }
     headerRow.appendChild(th);
   }
 
