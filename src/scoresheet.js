@@ -13,6 +13,7 @@ let visibleTeam = 'first';
 
 export function initScoresheet(game) {
   currentGame = game;
+  syncCurrentInningFromData();
   visibleTeam = game.getBattingTeam();
   renderScoresheetTable('first');
   renderScoresheetTable('second');
@@ -38,6 +39,22 @@ export function updateScoresheet() {
 function setVisibleTeam(teamKey) {
   visibleTeam = teamKey;
   applyVisibleTeam();
+}
+
+// The stored currentInning can be stale (e.g. saved by an older app version),
+// so on load derive it from the latest half-inning that has recorded data.
+function syncCurrentInningFromData() {
+  for (let i = 12; i >= 1; i--) {
+    const firstHas = hasDataInInning('first', i);
+    const secondHas = hasDataInInning('second', i);
+    if (firstHas || secondHas) {
+      currentGame.currentInning = i;
+      currentGame.currentHalf = secondHas ? 'bottom' : 'top';
+      return;
+    }
+  }
+  currentGame.currentInning = 1;
+  currentGame.currentHalf = 'top';
 }
 
 function applyVisibleTeam() {
