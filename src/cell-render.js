@@ -12,9 +12,8 @@
 // 'inning-end' to the <td class="score-cell"> (styled in styles/cell.css).
 
 import './styles/cell.css';
-import { RESULT_TYPES, RUNNER_EVENTS } from './rules.js';
 import { escapeHtml } from './util.js';
-import { describeCell, fielderPath, validEvents } from './describe.js';
+import { describeCell, fielderPath, validEvents, resultTypeOf, runnerEventOf } from './describe.js';
 
 const ROMAN = { 1: 'Ⅰ', 2: 'Ⅱ', 3: 'Ⅲ' };
 
@@ -68,6 +67,13 @@ function positionsHTML(pos, batType) {
   return `<span class="traj-mark traj-${batType}">${escapeHtml(first)}</span>${escapeHtml(rest)}`;
 }
 
+// Display width in half-width units (full-width characters count 2)
+function displayWidth(text) {
+  let w = 0;
+  for (const ch of Array.from(text)) w += /[\u1100-\u115F\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE30-\uFE4F\uFF00-\uFF60\uFFE0-\uFFE6]/.test(ch) ? 2 : 1;
+  return w;
+}
+
 function sizeClass(len) {
   if (len <= 2) return 'fs-l';
   if (len <= 3) return 'fs-m';
@@ -86,7 +92,7 @@ function line(content, extra = '') {
 function resultHTML(rt, cell, preLines = []) {
   const id = rt.id;
   const pos = rt.needsPositions ? positionsDisplay(cell.positions) : { text: '', isPath: false };
-  const posLen = Array.from(pos.text).length;
+  const posLen = displayWidth(pos.text);
   const lines = preLines.slice();
   let cls = '';
   let len = 1;
@@ -163,16 +169,22 @@ function trajClass(rt, pos) {
 // ============================================
 
 // Decides the base area of every event. Explicit e.base wins; otherwise the
-// runner is assumed to move one base per advancing event.
-function placeEvents(events, startBase) {
+// runner is assumed to move one base per advancing event, and an out happens
+// after the last base reached safely (basesReached): a pick-off at that base,
+// any other out at the next one.
+function placeEvents(events, startBase, reached) {
   const byBase = { 1: [], 2: [], 3: [], 4: [] };
   let cur = startBase;
   for (const e of events) {
-    const ev = RUNNER_EVENTS[e.type];
+    const ev = runnerEventOf(e.type);
     let base = validBase(e.base);
     if (!base) {
-      if (ev.isOut && e.type === 'PICKOFF') base = cur;
-      else base = Math.min(cur + 1, 4);
+      if (ev.isOut) {
+        const last = Math.min(Math.max(cur, reached), 3);
+        base = e.type === 'PICKOFF' ? last : last + 1;
+      } else {
+        base = Math.min(cur + 1, 4);
+      }
     }
     byBase[base].push(e);
     if (!ev.isOut) cur = base;
@@ -182,7 +194,7 @@ function placeEvents(events, startBase) {
 
 function eventTagsHTML(list) {
   return list.map(e => {
-    const ev = RUNNER_EVENTS[e.type];
+    const ev = runnerEventOf(e.type);
     const outCls = ev.isOut ? ' ev-out' : '';
     return `<span class="cell-event-tag${outCls}" style="color:${ev.color};border-color:${ev.color}" title="${escapeHtml(ev.label)}">${escapeHtml(ev.symbol)}</span>`;
   }).join('');
@@ -197,20 +209,20 @@ function eventTagsHTML(list) {
 export function renderCellHTML(cell, opts = {}) {
   if (!cell || typeof cell !== 'object') return '';
   const options = opts || {};
-  const rt = cell.resultType ? RESULT_TYPES[cell.resultType] || null : null;
+  const rt = cell.resultType ? resultTypeOf(cell.resultType) : null;
   const events = validEvents(cell.runnerEvents);
   if (!rt && events.length === 0) return '';
 
   const isPlaced = !!options.isPlaced || cell.resultType === 'TIEBREAK_RUNNER';
   const batterOut = !!(rt && rt.isOut);
   const reached = batterOut ? 0 : reachedBase(cell);
-  const hasOutEvent = events.some(e => RUNNER_EVENTS[e.type].isOut);
+  const hasOutEvent = events.some(e => runnerEventOf(e.type).isOut);
   const runnerOut = !batterOut && (hasOutEvent || (!!rt && !isPlaced && reached === 0));
   const isOut = batterOut || runnerOut;
   const scored = !isOut && reached === 4;
   const state = isOut ? 'out' : scored ? 'scored' : 'onbase';
 
-  const advances = events.filter(e => !RUNNER_EVENTS[e.type].isOut).length;
+  const advances = events.filter(e => !runnerEventOf(e.type).isOut).length;
   let startBase = validBase(options.startBase);
   if (isPlaced && !startBase) startBase = Math.min(Math.max(reached - advances, 1), 2);
   const firstBase = isPlaced ? startBase : rt ? Math.min(Math.max(rt.bases || 1, 1), 3) : 1;
@@ -248,7 +260,7 @@ export function renderCellHTML(cell, opts = {}) {
   }
 
   // Runner events by base area
-  const byBase = placeEvents(events, firstBase || 1);
+  const byBase = placeEvents(events, firstBase || 1, reached);
   [2, 3, 4].forEach(b => {
     if (byBase[b].length) html += `<div class="cell-events ev-q${b}">${eventTagsHTML(byBase[b])}</div>`;
   });
@@ -267,7 +279,7 @@ export function renderCellHTML(cell, opts = {}) {
 //         inningEnd?: boolean, large?: boolean, startBase? }
 export function renderLegendSample(resultType, opts = {}) {
   const options = opts || {};
-  const rt = RESULT_TYPES[resultType] || null;
+  const rt = resultTypeOf(resultType);
   let cell = options.cell || null;
   if (!cell) {
     if (!rt) return '';

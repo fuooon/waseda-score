@@ -3,7 +3,9 @@
    ============================================
    Sizes use container query units (cqh / cqw) of .cell-content so the same
    drawing scales with the sheet cell (100x80 / 80x64 / 70x56) and with the
-   samples of the symbol guide. Each size has a px fallback first. */
+   samples of the symbol guide. Each size has a px fallback first.
+   Sizes follow the cell height; min(…cqh, …cqw) shrinks them in cells that
+   are narrower than the usual 5:4 (e.g. 52x60) so nothing collides. */
 
 .cell-content {
   position: absolute;
@@ -13,7 +15,7 @@
   container-type: size;
   background-color: inherit;
   color: #2C2416;
-  font-family: var(--font-mono, 'M PLUS 1', sans-serif);
+  font-family: 'M PLUS 1', 'Noto Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
 }
 
 /* Quadrant lines (三塁 | 二塁 / 本塁 | 一塁) */
@@ -36,14 +38,14 @@
   top: 50%;
   width: 20px;
   height: 20px;
-  width: 36cqh;
-  height: 36cqh;
+  width: min(36cqh, 32.4cqw);
+  height: min(36cqh, 32.4cqw);
   background-color: inherit;
   border: 1px solid #c4bba9;
   transform: translate(-50%, -50%) rotate(45deg);
   z-index: 2;
   --path-w: 2.5px;
-  --path-w: max(2px, 3.4cqh);
+  --path-w: max(2px, min(3.4cqh, 3.06cqw));
 }
 
 /* Base path the player covered (red) */
@@ -64,8 +66,8 @@
   top: 50%;
   width: 8px;
   height: 8px;
-  width: 15cqh;
-  height: 15cqh;
+  width: min(15cqh, 13.5cqw);
+  height: min(15cqh, 13.5cqw);
   background: var(--color-red, #C62828);
   border-radius: 50%;
   transform: translate(-50%, -50%);
@@ -79,7 +81,7 @@
   transform: translate(-50%, -50%);
   font-family: 'Times New Roman', serif;
   font-size: 12px;
-  font-size: 22cqh;
+  font-size: min(22cqh, 19.8cqw);
   font-weight: 700;
   line-height: 1;
   color: #2C2416;
@@ -99,16 +101,16 @@
   flex-direction: column;
   align-items: flex-end;
   font-size: 13px;
-  font-size: 25cqh;
+  font-size: min(25cqh, 22.5cqw);
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
   color: #2C2416;
   z-index: 4;
 }
-.cell-result.fs-m { font-size: 11px; font-size: 21cqh; }
-.cell-result.fs-s { font-size: 10px; font-size: 18cqh; }
-.cell-result.fs-xs { font-size: 8px; font-size: 15cqh; }
+.cell-result.fs-m { font-size: 11px; font-size: min(21cqh, 18.9cqw); }
+.cell-result.fs-s { font-size: 10px; font-size: max(8px, min(18cqh, 16.2cqw)); }
+.cell-result.fs-xs { font-size: 8px; font-size: max(7.5px, min(15cqh, 13.5cqw)); }
 .cell-result.is-hit { color: var(--color-red, #C62828); }
 
 .cr-line {
@@ -116,11 +118,13 @@
   align-items: center;
   justify-content: flex-end;
   line-height: 1;
+  min-height: 1em; /* a hit mark alone stays at text height */
 }
+.cr-line.cr-events { min-height: 0; }
 .cr-line + .cr-line { margin-top: 0.12em; }
 .cr-sym { font-size: 0.85em; }
 .cr-sym-inline { margin-right: 0.08em; }
-.cr-note { font-size: 0.55em; font-family: var(--font-main, sans-serif); margin-top: 0.15em; }
+.cr-note { font-size: max(7.5px, 0.55em); font-family: var(--font-main, sans-serif); margin-top: 0.15em; }
 .cr-events { gap: 1px; margin-bottom: 0.1em; }
 
 /* room for the trajectory marks */
@@ -266,7 +270,7 @@
   display: inline-block;
   font-family: Arial, Helvetica, sans-serif;
   font-size: 8px;
-  font-size: max(8px, 14cqh);
+  font-size: max(8px, min(14cqh, 12.6cqw));
   font-weight: 700;
   line-height: 1.05;
   padding: 0 0.18em;
@@ -276,7 +280,6 @@
   white-space: nowrap;
 }
 .cell-event-tag.ev-out { background: #FFEBEE; }
-.cr-events .cell-event-tag { font-size: 0.6em; }
 
 /* ============================================
    Inning end '//' (the sheet adds .inning-end to the td of the 3rd out)

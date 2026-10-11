@@ -16,6 +16,20 @@ export function baseName(n) {
   return BASE_NAMES[n] || '';
 }
 
+// Own-property lookups: saved data may carry keys such as 'constructor' or
+// '__proto__' that would otherwise resolve to Object.prototype members.
+const hasOwn = (obj, key) => typeof key === 'string' && Object.prototype.hasOwnProperty.call(obj, key);
+
+// RESULT_TYPES entry for a resultType, or null
+export function resultTypeOf(resultType) {
+  return hasOwn(RESULT_TYPES, resultType) ? RESULT_TYPES[resultType] : null;
+}
+
+// RUNNER_EVENTS entry for an event type, or null
+export function runnerEventOf(type) {
+  return hasOwn(RUNNER_EVENTS, type) ? RUNNER_EVENTS[type] : null;
+}
+
 // ============================================
 // Fielder paths ("6-4-3")
 // ============================================
@@ -24,15 +38,16 @@ const FULLWIDTH_DIGITS = /[０-９]/g;
 const DASHES = /[‐‑‒–—―−－ー─━ｰ~〜～]/g;
 const VALID_PATH = /^[1-9](?:-?[1-9])*$/;
 
-// Returns the fielder path in half-width form ("６－３" → "6-3"), or '' when
-// the text is not a sequence of fielder numbers.
+// Returns the fielder path in half-width form with a dash between fielders
+// ("６－３" → "6-3", "643" → "6-4-3"), or '' when the text is not a sequence
+// of fielder numbers.
 export function fielderPath(positions) {
   if (positions === null || positions === undefined) return '';
   const text = String(positions)
     .replace(FULLWIDTH_DIGITS, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
     .replace(DASHES, '-')
     .replace(/[\s・,、]+/g, '');
-  return VALID_PATH.test(text) ? text : '';
+  return VALID_PATH.test(text) ? text.replace(/-/g, '').split('').join('-') : '';
 }
 
 function fielderCount(path) {
@@ -53,7 +68,7 @@ const OUTFIELD = { 7: true, 8: true, 9: true };
 // Single-fielder paths are said with the fielder name only; longer paths are
 // added in parentheses so the reader can match them with the sheet.
 export function describeResult(resultType, positions) {
-  const rt = RESULT_TYPES[resultType];
+  const rt = resultTypeOf(resultType);
   if (!rt) return '';
   const path = rt.needsPositions ? fielderPath(positions) : '';
   const name = fieldName(path);
@@ -117,7 +132,7 @@ export function describeResult(resultType, positions) {
 
 // Phrase for an advance; base = base reached (null when unknown)
 function advancePhrase(type, base) {
-  const ev = RUNNER_EVENTS[type];
+  const ev = runnerEventOf(type);
   if (base === 4) {
     switch (type) {
       case 'STOLEN_BASE': return 'ホームスチールで生還（得点）';
@@ -152,7 +167,7 @@ function advancePhrase(type, base) {
 const OUT_EVENT_WORDS = { CAUGHT_STEALING: '盗塁死', PICKOFF: '牽制死', RUNNER_OUT: '走塁死' };
 
 function outPhrase(type, base, outText) {
-  const word = OUT_EVENT_WORDS[type] || RUNNER_EVENTS[type].label;
+  const word = OUT_EVENT_WORDS[type] || runnerEventOf(type).label;
   return `${base ? baseName(base) + 'で' : ''}${word}${outText}`;
 }
 
@@ -188,7 +203,7 @@ function playerPrefix(playerName, orderNum) {
 
 export function validEvents(runnerEvents) {
   if (!Array.isArray(runnerEvents)) return [];
-  return runnerEvents.filter(e => e && RUNNER_EVENTS[e.type]);
+  return runnerEvents.filter(e => e && typeof e === 'object' && runnerEventOf(e.type));
 }
 
 // ============================================
@@ -197,18 +212,22 @@ export function validEvents(runnerEvents) {
 
 // One sentence for a cell, e.g.
 //   "4番 田中：ショートゴロ（6-3）でアウト【1アウト目】"
-//   "レフト前ヒット → 盗塁 → 得点（打点1）"
-//   "四球で出塁 → 二塁で走塁死【2アウト目】"
+//   "レフト前ヒット（打点1） → 盗塁 → 得点"
+//   "四球（フォアボール）で出塁 → 二塁で走塁死【2アウト目】"
+// The RBI is written right after the batting result (it belongs to the hit,
+// not to this player's own run).
 // opts: { playerName, orderNum (1-based), startBase (placed runner's base) }
+const HR_RUNS = { 1: 'ソロ', 2: '2ラン', 3: '3ラン', 4: '満塁' };
+
 export function describeCell(cell, opts = {}) {
   if (!cell || typeof cell !== 'object') return '';
-  const { playerName, orderNum } = opts || {};
-  const rt = cell.resultType ? RESULT_TYPES[cell.resultType] : null;
+  const o = opts || {};
+  const rt = cell.resultType ? resultTypeOf(cell.resultType) : null;
   const events = validEvents(cell.runnerEvents);
   if (cell.resultType && !rt) return '';
   if (!rt && events.length === 0) return '';
 
-  const prefix = playerPrefix(playerName, orderNum);
+  const prefix = playerPrefix(o.playerName, o.orderNum);
   const outText = outNumberText(cell.outNumber);
   const rbi = toCount(cell.rbi);
   const rbiText = rbi > 0 ? `（打点${rbi}）` : '';
@@ -225,22 +244,29 @@ export function describeCell(cell, opts = {}) {
   const reached = validBase(cell.basesReached) || 0;
 
   if (cell.resultType === 'HOMERUN') {
-    return `${prefix}${phrase}で得点${rbiText}`;
+    // "レフトへの2ランホームランで得点（打点2）"
+    const kind = HR_RUNS[rbi] || '';
+    return `${prefix}${phrase.replace(/ホームラン$/, kind + 'ホームラン')}で得点${rbiText}`;
   }
 
   const parts = [];
   if (!rt) parts.push('打席結果が未入力');
   else if (isPlaced) parts.push(phrase);
-  else if (rt.isHit) parts.push(phrase);
-  else parts.push(`${phrase}で出塁`);
+  else if (rt.isHit) parts.push(phrase + rbiText);
+  else if (rbi > 0 && (rt.category === 'walk' || cell.resultType === 'INTERFERENCE')) {
+    // bases loaded: the runner on third is forced home
+    parts.push(`${phrase}で出塁（押し出しで打点${rbi}）`);
+  } else parts.push(`${phrase}で出塁${rbiText}`);
 
   // cur = base the reader knows the runner is on (null = unknown)
-  let cur = isPlaced ? validBase(opts.startBase) : (rt ? Math.min(Math.max(rt.bases || 1, 1), 3) : null);
+  const startBase = isPlaced ? validBase(o.startBase) : null;
+  if (isPlaced && startBase && startBase <= 3) parts[0] += `（${baseName(startBase)}）`;
+  let cur = isPlaced ? startBase : (rt ? Math.min(Math.max(rt.bases || 1, 1), 3) : null);
   let scoredSaid = false;
   let outSaid = false;
 
   for (const e of events) {
-    const ev = RUNNER_EVENTS[e.type];
+    const ev = runnerEventOf(e.type);
     const base = validBase(e.base);
     if (ev.isOut) {
       if (reached >= 1 && reached <= 3 && (cur === null || reached > cur) && (!base || reached < base)) {
@@ -273,7 +299,7 @@ export function describeCell(cell, opts = {}) {
     }
   }
 
-  return prefix + parts.join(' → ') + rbiText;
+  return prefix + parts.join(' → ');
 }
 
 // ============================================
