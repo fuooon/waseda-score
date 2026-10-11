@@ -3,6 +3,9 @@ import { RESULT_TYPES, RUNNER_EVENTS } from '../src/rules.js';
 import {
   describeCell, describeResult, describeHalfInning, baseName, fielderPath,
 } from '../src/describe.js';
+import { halfInning } from '../src/scoring.js';
+import { VALID, INVALID } from './examples.js';
+import { cells as makeCells, makeGame, fillerSpecs, gameWithHalf } from './helpers.js';
 
 const T = (type, base) => (base ? { type, base } : { type });
 const XSS = '<img src=x onerror=alert(1)>';
@@ -36,7 +39,9 @@ describe('fielderPath', () => {
     expect(fielderPath('６－３')).toBe('6-3');
     expect(fielderPath('6ー4ー3')).toBe('6-4-3');
     expect(fielderPath(' 6-3 ')).toBe('6-3');
-    expect(fielderPath('63')).toBe('63');
+    expect(fielderPath('63')).toBe('6-3');
+    expect(fielderPath('643')).toBe('6-4-3');
+    expect(fielderPath('6-43')).toBe('6-4-3');
   });
   it('rejects text that is not fielder numbers', () => {
     expect(fielderPath('')).toBe('');
@@ -134,9 +139,9 @@ describe('describeCell', () => {
     expect(describeCell(cell, { playerName: '田中', orderNum: 4 })).toBe('4番 田中：ショートゴロ（6-3）でアウト【1アウト目】');
   });
 
-  it('describes the runner journey and RBI', () => {
+  it('describes the runner journey; the RBI stays with the hit, not with the run', () => {
     const cell = { resultType: 'SINGLE', positions: '7', rbi: 1, basesReached: 4, outNumber: null, runnerEvents: [T('STOLEN_BASE')] };
-    expect(describeCell(cell)).toBe('レフト前ヒット → 盗塁 → 得点（打点1）');
+    expect(describeCell(cell)).toBe('レフト前ヒット（打点1） → 盗塁 → 得点');
   });
 
   it('describes a runner out on the bases', () => {
@@ -167,7 +172,7 @@ describe('describeCell', () => {
     expect(describeCell({ resultType: 'DOUBLE_PLAY', positions: '6-4-3', outNumber: 2 }))
       .toBe('ショートゴロの併殺打（6-4-3）でアウト【2アウト目】（走者と合わせて2アウト）');
     expect(describeCell({ resultType: 'HOMERUN', positions: '7', rbi: 2, basesReached: 4 }, { orderNum: 1 }))
-      .toBe('1番：レフトへのホームランで得点（打点2）');
+      .toBe('1番：レフトへの2ランホームランで得点（打点2）');
   });
 
   it('describes a sacrifice fly with its RBI', () => {
@@ -183,7 +188,7 @@ describe('describeCell', () => {
   it('describes placed tiebreak runners', () => {
     expect(describeCell({ resultType: 'TIEBREAK_RUNNER', basesReached: 4 })).toBe('タイブレークの置きランナー → 得点');
     expect(describeCell({ resultType: 'TIEBREAK_RUNNER', basesReached: 2 })).toBe('タイブレークの置きランナー（二塁）');
-    expect(describeCell({ resultType: 'TIEBREAK_RUNNER', basesReached: 3 }, { startBase: 2 })).toBe('タイブレークの置きランナー → 三塁へ進む');
+    expect(describeCell({ resultType: 'TIEBREAK_RUNNER', basesReached: 3 }, { startBase: 2 })).toBe('タイブレークの置きランナー（二塁） → 三塁へ進む');
   });
 
   it('describes every runner event with and without a base', () => {
@@ -321,5 +326,293 @@ describe('describeHalfInning', () => {
     const text = describeHalfInning({ started: true, complete: true, cells: [c(0, 'SCORED')] }, undefined, { detail: true });
     clean(text);
     expect(text).toContain('1番');
+  });
+});
+
+// ============================================
+// Verifier cases: every result type, directions, journeys, RBI
+// ============================================
+
+const FIELD = { 1: 'ピッチャー', 2: 'キャッチャー', 3: 'ファースト', 4: 'セカンド', 5: 'サード', 6: 'ショート', 7: 'レフト', 8: 'センター', 9: 'ライト' };
+
+describe('describeResult: direction words for every fielder', () => {
+  for (const n of Object.keys(FIELD)) {
+    it(`fielder ${n} = ${FIELD[n]}`, () => {
+      expect(describeResult('GROUNDOUT', n)).toBe(`${FIELD[n]}ゴロ`);
+      expect(describeResult('FLYOUT', n)).toBe(`${FIELD[n]}フライ`);
+      expect(describeResult('LINEOUT', n)).toBe(`${FIELD[n]}ライナー`);
+      expect(describeResult('SINGLE', n)).toBe(n >= 7 ? `${FIELD[n]}前ヒット` : `${FIELD[n]}への内野安打`);
+      expect(describeResult('DOUBLE', n)).toBe(`${FIELD[n]}への二塁打`);
+      expect(describeResult('TRIPLE', n)).toBe(`${FIELD[n]}への三塁打`);
+      expect(describeResult('HOMERUN', n)).toBe(`${FIELD[n]}へのホームラン`);
+      expect(describeResult('ERROR', n)).toBe(`${FIELD[n]}のエラー`);
+      // the first fielder of a path decides the word
+      expect(describeResult('GROUNDOUT', `${n}-3`)).toBe(`${FIELD[n]}ゴロ（${n}-3）`);
+    });
+  }
+});
+
+describe('describeCell: every result type with and without fielder numbers', () => {
+  const POS = { GROUNDOUT: '6-3', FLYOUT: '8', LINEOUT: '5', DOUBLE_PLAY: '6-4-3', INFIELD_FLY: '4', SINGLE: '7', DOUBLE: '8', TRIPLE: '9', HOMERUN: '7', SACRIFICE_BUNT: '1-3', SACRIFICE_FLY: '8', ERROR: '6', FIELDERS_CHOICE: '6-4' };
+  const WITH = {
+    GROUNDOUT: 'ショートゴロ（6-3）でアウト【1アウト目】',
+    FLYOUT: 'センターフライでアウト【1アウト目】',
+    LINEOUT: 'サードライナーでアウト【1アウト目】',
+    STRIKEOUT_SWING: '空振り三振でアウト【1アウト目】',
+    STRIKEOUT_LOOK: '見逃し三振でアウト【1アウト目】',
+    DOUBLE_PLAY: 'ショートゴロの併殺打（6-4-3）でアウト【1アウト目】（走者と合わせて2アウト）',
+    INFIELD_FLY: 'インフィールドフライ（セカンド）でアウト【1アウト目】',
+    SINGLE: 'レフト前ヒット',
+    DOUBLE: 'センターへの二塁打',
+    TRIPLE: 'ライトへの三塁打',
+    HOMERUN: 'レフトへのソロホームランで得点（打点1）',
+    WALK: '四球（フォアボール）で出塁',
+    INTENTIONAL_WALK: '敬遠の四球で出塁',
+    HIT_BY_PITCH: '死球（デッドボール）で出塁',
+    SACRIFICE_BUNT: 'ピッチャー前への送りバント（犠打・1-3）でアウト【1アウト目】',
+    SACRIFICE_FLY: 'センターへの犠牲フライでアウト【1アウト目】（打点1）',
+    ERROR: 'ショートのエラーで出塁',
+    FIELDERS_CHOICE: 'ショートの野選（フィルダースチョイス・6-4）で出塁',
+    STRIKEOUT_WILD: '振り逃げで出塁',
+    INTERFERENCE: '打撃妨害で出塁',
+    TIEBREAK_RUNNER: 'タイブレークの置きランナー（二塁）',
+  };
+  const WITHOUT = {
+    GROUNDOUT: 'ゴロでアウト【2アウト目】',
+    FLYOUT: 'フライでアウト【2アウト目】',
+    LINEOUT: 'ライナーでアウト【2アウト目】',
+    DOUBLE_PLAY: '併殺打（ダブルプレー）でアウト【2アウト目】（走者と合わせて2アウト）',
+    INFIELD_FLY: 'インフィールドフライでアウト【2アウト目】',
+    SINGLE: 'ヒット',
+    DOUBLE: '二塁打',
+    TRIPLE: '三塁打',
+    HOMERUN: 'ソロホームランで得点（打点1）',
+    SACRIFICE_BUNT: '送りバント（犠打）でアウト【2アウト目】',
+    SACRIFICE_FLY: '犠牲フライでアウト【2アウト目】（打点1）',
+    ERROR: 'エラーで出塁',
+    FIELDERS_CHOICE: '野選（フィルダースチョイス）で出塁',
+  };
+
+  it('covers every RESULT_TYPE', () => {
+    expect(Object.keys(WITH).sort()).toEqual(Object.keys(RESULT_TYPES).sort());
+  });
+
+  for (const id of Object.keys(WITH)) {
+    it(`${id} with fielder numbers`, () => {
+      const rt = RESULT_TYPES[id];
+      const cell = {
+        resultType: id, positions: POS[id] || '', rbi: id === 'HOMERUN' || id === 'SACRIFICE_FLY' ? 1 : 0,
+        basesReached: rt.isOut ? 0 : rt.bases, outNumber: rt.isOut ? 1 : null, runnerEvents: [],
+      };
+      expect(describeCell(cell, { startBase: 2 })).toBe(WITH[id]);
+    });
+  }
+
+  for (const id of Object.keys(WITHOUT)) {
+    it(`${id} without fielder numbers`, () => {
+      const rt = RESULT_TYPES[id];
+      const cell = {
+        resultType: id, positions: '', rbi: id === 'HOMERUN' || id === 'SACRIFICE_FLY' ? 1 : 0,
+        basesReached: rt.isOut ? 0 : rt.bases, outNumber: rt.isOut ? 2 : null, runnerEvents: [],
+      };
+      expect(describeCell(cell)).toBe(WITHOUT[id]);
+    });
+  }
+
+  it('ignores fielder numbers typed for results that have none', () => {
+    expect(describeCell({ resultType: 'STRIKEOUT_SWING', positions: '2', outNumber: 3 })).toBe('空振り三振でアウト【3アウト目】');
+    expect(describeCell({ resultType: 'WALK', positions: '6', basesReached: 1 })).toBe('四球（フォアボール）で出塁');
+  });
+});
+
+describe('describeCell: runner journeys', () => {
+  it('single → stolen base → scored (with and without the base of the event)', () => {
+    expect(describeCell({ resultType: 'SINGLE', positions: '7', basesReached: 4, runnerEvents: [T('STOLEN_BASE', 2)] }, { orderNum: 4, playerName: '田中' }))
+      .toBe('4番 田中：レフト前ヒット → 二塁へ盗塁 → 得点');
+    expect(describeCell({ resultType: 'SINGLE', positions: '7', basesReached: 4, runnerEvents: [T('STOLEN_BASE')] }))
+      .toBe('レフト前ヒット → 盗塁 → 得点');
+    expect(describeCell({ resultType: 'SINGLE', positions: '8', basesReached: 4, runnerEvents: [T('STOLEN_BASE', 2), T('STOLEN_BASE', 3), T('PASSED_BALL', 4)] }))
+      .toBe('センター前ヒット → 二塁へ盗塁 → 三塁へ盗塁 → 捕逸で生還（得点）');
+  });
+
+  it('home steal and every advance into home', () => {
+    expect(describeCell({ resultType: 'TRIPLE', positions: '9', basesReached: 4, runnerEvents: [T('STOLEN_BASE', 4)] }))
+      .toBe('ライトへの三塁打 → ホームスチールで生還（得点）');
+    expect(describeCell({ resultType: 'WALK', basesReached: 4, runnerEvents: [T('STOLEN_BASE', 2), T('BALK', 3), T('WILD_PITCH', 4)] }))
+      .toBe('四球（フォアボール）で出塁 → 二塁へ盗塁 → ボークで三塁へ → 暴投で生還（得点）');
+    expect(describeCell({ resultType: 'ERROR', positions: '6', basesReached: 4, runnerEvents: [T('ADVANCE_ON_ERROR', 4)] }))
+      .toBe('ショートのエラーで出塁 → エラーの間に生還（得点）');
+  });
+
+  it('walk, then forced out at second (2nd out)', () => {
+    expect(describeCell({ resultType: 'WALK', basesReached: 1, outNumber: 2, runnerEvents: [T('RUNNER_OUT', 2)] }, { orderNum: 2 }))
+      .toBe('2番：四球（フォアボール）で出塁 → 二塁で走塁死【2アウト目】');
+  });
+
+  it('home runs name the runs they brought in', () => {
+    const hr = (rbi, positions = '7') => describeCell({ resultType: 'HOMERUN', positions, rbi, basesReached: 4 });
+    expect(hr(1)).toBe('レフトへのソロホームランで得点（打点1）');
+    expect(hr(2)).toBe('レフトへの2ランホームランで得点（打点2）');
+    expect(hr(3, '8')).toBe('センターへの3ランホームランで得点（打点3）');
+    expect(hr(4, '9')).toBe('ライトへの満塁ホームランで得点（打点4）');
+    // RBI missing (C12 data): no run count is made up
+    expect(hr(0)).toBe('レフトへのホームランで得点');
+  });
+
+  it('double play: the batter cell and the doubled-off runner cell (E5)', () => {
+    expect(describeCell({ resultType: 'DOUBLE_PLAY', positions: '6-4-3', outNumber: 2 }, { orderNum: 7 }))
+      .toBe('7番：ショートゴロの併殺打（6-4-3）でアウト【2アウト目】（走者と合わせて2アウト）');
+    expect(describeCell({ resultType: 'SINGLE', positions: '8', basesReached: 1, outNumber: 1, runnerEvents: [T('RUNNER_OUT')] }, { orderNum: 6 }))
+      .toBe('6番：センター前ヒット → 走塁死【1アウト目】');
+    expect(describeCell({ resultType: 'SINGLE', positions: '8', basesReached: 1, outNumber: 1, runnerEvents: [T('RUNNER_OUT', 2)] }))
+      .toBe('センター前ヒット → 二塁で走塁死【1アウト目】');
+    // a DP never carries an RBI, but if it does the text shows it so the reader notices
+    expect(describeCell({ resultType: 'DOUBLE_PLAY', positions: '4-6-3', outNumber: 3, rbi: 1 }))
+      .toBe('セカンドゴロの併殺打（4-6-3）でアウト【3アウト目】（走者と合わせて2アウト）（打点1）');
+  });
+
+  it('caught stealing for the 3rd out (E8)', () => {
+    expect(describeCell({ resultType: 'SINGLE', positions: '7', basesReached: 1, outNumber: 3, runnerEvents: [T('CAUGHT_STEALING')] }, { orderNum: 3 }))
+      .toBe('3番：レフト前ヒット → 盗塁死【3アウト目】');
+    expect(describeCell({ resultType: 'SINGLE', positions: '7', basesReached: 1, outNumber: 3, runnerEvents: [T('CAUGHT_STEALING', 2)] }))
+      .toBe('レフト前ヒット → 二塁で盗塁死【3アウト目】');
+    expect(describeCell({ resultType: 'SINGLE', positions: '9', basesReached: 3, outNumber: 1, runnerEvents: [T('STOLEN_BASE', 2), T('CAUGHT_STEALING', 4)] }))
+      .toBe('ライト前ヒット → 二塁へ盗塁 → 三塁へ進む → 本塁で盗塁死【1アウト目】');
+    expect(describeCell({ resultType: 'SINGLE', positions: '6', basesReached: 1, outNumber: 2, runnerEvents: [T('PICKOFF', 1)] }))
+      .toBe('ショートへの内野安打 → 一塁で牽制死【2アウト目】');
+  });
+
+  it('placed tiebreak runner scoring', () => {
+    expect(describeCell({ resultType: 'TIEBREAK_RUNNER', basesReached: 4, runnerEvents: [] }, { orderNum: 3, playerName: '高橋', startBase: 2 }))
+      .toBe('3番 高橋：タイブレークの置きランナー（二塁） → 得点');
+    expect(describeCell({ resultType: 'TIEBREAK_RUNNER', basesReached: 4, runnerEvents: [T('WILD_PITCH', 2)] }, { startBase: 1 }))
+      .toBe('タイブレークの置きランナー（一塁） → 暴投で二塁へ → 得点');
+    expect(describeCell({ resultType: 'TIEBREAK_RUNNER', basesReached: 1, outNumber: 1, runnerEvents: [T('RUNNER_OUT', 2)] }, { startBase: 1 }))
+      .toBe('タイブレークの置きランナー（一塁） → 二塁で走塁死【1アウト目】');
+    expect(describeCell({ resultType: 'TIEBREAK_RUNNER', basesReached: 2, runnerEvents: [] }, { startBase: 2 }))
+      .toBe('タイブレークの置きランナー（二塁）');
+    // unknown start base: only the result is said
+    expect(describeCell({ resultType: 'TIEBREAK_RUNNER', basesReached: 4, runnerEvents: [] })).toBe('タイブレークの置きランナー → 得点');
+  });
+
+  it('puts the RBI right after the batting result', () => {
+    expect(describeCell({ resultType: 'TRIPLE', positions: '9', rbi: 2, basesReached: 4, runnerEvents: [T('WILD_PITCH', 4)] }))
+      .toBe('ライトへの三塁打（打点2） → 暴投で生還（得点）');
+    expect(describeCell({ resultType: 'DOUBLE', positions: '8', rbi: 1, basesReached: 2 }))
+      .toBe('センターへの二塁打（打点1）');
+    expect(describeCell({ resultType: 'FIELDERS_CHOICE', positions: '5', rbi: 1, basesReached: 1 }))
+      .toBe('サードの野選（フィルダースチョイス）で出塁（打点1）');
+    expect(describeCell({ resultType: 'GROUNDOUT', positions: '4-3', rbi: 1, outNumber: 1 }))
+      .toBe('セカンドゴロ（4-3）でアウト【1アウト目】（打点1）');
+  });
+
+  it('calls a bases-loaded walk, hit-by-pitch or interference RBI a push-in run', () => {
+    expect(describeCell({ resultType: 'WALK', rbi: 1, basesReached: 1 })).toBe('四球（フォアボール）で出塁（押し出しで打点1）');
+    expect(describeCell({ resultType: 'HIT_BY_PITCH', rbi: 1, basesReached: 1 })).toBe('死球（デッドボール）で出塁（押し出しで打点1）');
+    expect(describeCell({ resultType: 'INTERFERENCE', rbi: 1, basesReached: 1 })).toBe('打撃妨害で出塁（押し出しで打点1）');
+  });
+
+  it('describes a batter who moved up on later plays', () => {
+    expect(describeCell({ resultType: 'HIT_BY_PITCH', basesReached: 3 })).toBe('死球（デッドボール）で出塁 → 三塁へ進む');
+    expect(describeCell({ resultType: 'INTENTIONAL_WALK', basesReached: 4 })).toBe('敬遠の四球で出塁 → 得点');
+    expect(describeCell({ resultType: 'STRIKEOUT_WILD', basesReached: 2, runnerEvents: [T('STOLEN_BASE', 2)] })).toBe('振り逃げで出塁 → 二塁へ盗塁');
+    expect(describeCell({ resultType: 'ERROR', positions: '5-3', basesReached: 2 })).toBe('エラー（5-3）で出塁 → 二塁へ進む');
+  });
+});
+
+describe('describe.js: hostile or broken data', () => {
+  it('ignores prototype keys used as result or event types', () => {
+    for (const key of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(describeResult(key, '6')).toBe('');
+      expect(describeCell({ resultType: key, basesReached: 1 })).toBe('');
+      const text = describeCell({ resultType: 'SINGLE', positions: '7', basesReached: 2, runnerEvents: [{ type: key }, T('STOLEN_BASE', 2)] });
+      expect(text).toBe('レフト前ヒット → 二塁へ盗塁');
+    }
+  });
+
+  it('accepts null options and odd event entries', () => {
+    expect(describeCell({ resultType: 'WALK', basesReached: 1 }, null)).toBe('四球（フォアボール）で出塁');
+    expect(describeCell({ resultType: 'WALK', basesReached: 2, runnerEvents: [null, 3, 'STOLEN_BASE', T('STOLEN_BASE', 2)] })).toBe('四球（フォアボール）で出塁 → 二塁へ盗塁');
+  });
+
+  it('keeps names as plain text (the caller escapes them)', () => {
+    const text = describeCell({ resultType: 'WALK', basesReached: 1 }, { playerName: '<b>"太郎"</b>', orderNum: 1 });
+    expect(text).toBe('1番 <b>"太郎"</b>：四球（フォアボール）で出塁');
+  });
+});
+
+// ============================================
+// describeHalfInning on real engine output (spec examples)
+// ============================================
+
+// Same construction as the engine tests: the example half-inning after filler innings.
+function exampleHalf(ex) {
+  if (ex.gameEndsHere) {
+    const game = makeGame({ innings: 1 });
+    game.atBats.first[1] = makeCells(fillerSpecs(0));
+    game.atBats.second[1] = makeCells(ex.cells);
+    return { game, half: halfInning(game, 'second', 1) };
+  }
+  const { game, inning } = gameWithHalf({ L: ex.L, cells: ex.cells });
+  if (ex.tiebreak) {
+    game.tiebreakerInning = inning;
+    game.tiebreakerRunners = ex.tiebreak;
+  }
+  if (ex.completed) game.atBats.second[inning] = makeCells(fillerSpecs(0));
+  return { game, half: halfInning(game, 'first', inning) };
+}
+
+describe('describeHalfInning with scoring.halfInning (E1–E12, X1–X6)', () => {
+  for (const ex of VALID) {
+    it(`${ex.id} gets a check mark and every cell reads cleanly`, () => {
+      const { game, half } = exampleHalf(ex);
+      const lineup = game.lineupFirst;
+      const text = describeHalfInning(half, lineup, { detail: true });
+      clean(text);
+      expect(text).toMatch(ex.gameEndsHere ? /✓（試合終了）$/ : / ✓$/);
+      expect(text).toContain(`アウト${ex.expect.outs}`);
+      expect(text).toContain(`得点${ex.expect.runs}`);
+      for (const entry of half.cells) {
+        const line = describeCell(entry.cell, { orderNum: entry.batterIdx + 1, playerName: lineup[entry.batterIdx]?.name });
+        clean(line);
+        expect(line.startsWith(`${entry.batterIdx + 1}番 `)).toBe(true);
+        if (entry.state === 'OUT' && entry.cell.outNumber) expect(line).toContain(`【${entry.cell.outNumber}アウト目】`);
+        if (entry.state === 'SCORED') expect(line).toMatch(/得点/);
+        if (entry.cell.rbi > 0) expect(line).toContain(`打点${entry.cell.rbi}`);
+      }
+    });
+  }
+
+  it('E2 names who scored and who was left on base', () => {
+    const { game, half } = exampleHalf(VALID.find(x => x.id === 'E2'));
+    expect(describeHalfInning(half, game.lineupFirst, { detail: true }))
+      .toBe('打者5人：得点1（4番 A4）・残塁1（5番 A5＝二塁）・アウト3 ✓');
+  });
+
+  it('E10 counts the placed runners', () => {
+    const { game, half } = exampleHalf(VALID.find(x => x.id === 'E10'));
+    expect(describeHalfInning(half, game.lineupFirst)).toBe('打者3人＋置きランナー2人：得点2・残塁0・アウト3 ✓');
+  });
+
+  it('X1: RBI without the run being recorded is not a check mark', () => {
+    const { game, half } = exampleHalf(INVALID.find(x => x.id === 'X1'));
+    const text = describeHalfInning(half, game.lineupFirst);
+    expect(text).toContain('⚠ 打点1が得点0より多くなっています');
+    expect(text).not.toContain('✓');
+  });
+
+  it('X4: a missing out in a finished half is flagged', () => {
+    const { game, half } = exampleHalf(INVALID.find(x => x.id === 'X4'));
+    expect(describeHalfInning(half, game.lineupFirst)).toContain('⚠ アウトが2つしかありません');
+  });
+
+  it('flags more than three runners left on base', () => {
+    const { game, inning } = gameWithHalf({ L: 0, cells: {
+      0: { resultType: 'WALK', basesReached: 1 }, 1: { resultType: 'WALK', basesReached: 1 },
+      2: { resultType: 'WALK', basesReached: 2 }, 3: { resultType: 'WALK', basesReached: 3 },
+      4: { resultType: 'STRIKEOUT_SWING', outNumber: 1 }, 5: { resultType: 'STRIKEOUT_SWING', outNumber: 2 },
+      6: { resultType: 'STRIKEOUT_SWING', outNumber: 3 } } });
+    const text = describeHalfInning(halfInning(game, 'first', inning), game.lineupFirst);
+    expect(text).toContain('⚠ 残塁が4人います');
   });
 });

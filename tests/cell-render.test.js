@@ -302,3 +302,165 @@ describe('help guide (generated from the same definitions)', () => {
     expect(html).not.toMatch(/onclick=/);
   });
 });
+
+// ============================================
+// Verifier cases
+// ============================================
+
+describe('renderCellHTML: runner journeys', () => {
+  it('single → stolen base → scored', () => {
+    const html = renderCellHTML({ resultType: 'SINGLE', positions: '7', basesReached: 4, runnerEvents: [T('STOLEN_BASE', 2)] });
+    expect(html).toMatch(/diamond-graphic b1 b2 b3 b4 hr"/);
+    expect(html).toMatch(/ev-q2">[^]*?>S<\/span><\/div>/);
+    expect(html).toContain('hit-mark hit-1');
+    expect(html).toContain('state-scored');
+    expect(html).not.toContain('out-number-text');
+  });
+
+  it('walk, then forced out at second', () => {
+    const html = renderCellHTML({ resultType: 'WALK', basesReached: 1, outNumber: 2, runnerEvents: [T('RUNNER_OUT', 2)] });
+    expect(html).toMatch(/diamond-graphic b1"/);
+    expect(html).toMatch(/ev-q2">[^]*?ev-out[^]*?>T\.O<\/span><\/div>/);
+    expect(html).toContain('<div class="out-number-text">Ⅱ</div>');
+    expect(html).toContain('state-out');
+  });
+
+  it('home run: full path, run mark, HR above the direction', () => {
+    const html = renderCellHTML({ resultType: 'HOMERUN', positions: '8', rbi: 3, basesReached: 4 });
+    expect(html).toMatch(/diamond-graphic b1 b2 b3 b4 hr"/);
+    expect(textOf(html)).toBe('HR8');
+    expect(html).toContain('is-hit');
+  });
+
+  it('double play: batter cell (DP + path + out number) and runner cell (T.O)', () => {
+    const batter = renderCellHTML({ resultType: 'DOUBLE_PLAY', positions: '6-4-3', outNumber: 3 });
+    expect(textOf(batter)).toBe('Ⅲ' + 'DP6-4-3');
+    expect(batter).toMatch(/diamond-graphic"/);
+    const runner = renderCellHTML({ resultType: 'SINGLE', positions: '8', basesReached: 1, outNumber: 2, runnerEvents: [T('RUNNER_OUT')] });
+    expect(runner).toMatch(/ev-q2">[^]*?>T\.O</);
+    expect(runner).toContain('Ⅱ');
+  });
+
+  it('caught stealing for the 3rd out', () => {
+    const html = renderCellHTML({ resultType: 'SINGLE', positions: '7', basesReached: 1, outNumber: 3, runnerEvents: [T('CAUGHT_STEALING')] });
+    expect(html).toMatch(/ev-q2">[^]*?>CS</);
+    expect(html).toContain('Ⅲ');
+    expect(html).toContain('state-out');
+  });
+
+  it('places an out without a base after the last base reached safely', () => {
+    // reached third on later hits, then caught stealing home
+    const home = renderCellHTML({ resultType: 'SINGLE', positions: '9', basesReached: 3, outNumber: 1, runnerEvents: [T('CAUGHT_STEALING')] });
+    expect(home).toMatch(/ev-q4">[^]*?>CS</);
+    // picked off at second after a double
+    const po = renderCellHTML({ resultType: 'DOUBLE', positions: '8', basesReached: 2, outNumber: 1, runnerEvents: [T('PICKOFF')] });
+    expect(po).toMatch(/ev-q2">[^]*?>PO</);
+    // forced out at third after moving to second
+    const to = renderCellHTML({ resultType: 'WALK', basesReached: 2, outNumber: 2, runnerEvents: [T('RUNNER_OUT')] });
+    expect(to).toMatch(/ev-q3">[^]*?>T\.O</);
+  });
+
+  it('placed tiebreak runner who scored: dashed unrun path, TB tag, run mark', () => {
+    const html = renderCellHTML({ resultType: 'TIEBREAK_RUNNER', basesReached: 4, runnerEvents: [] }, { isPlaced: true, startBase: 2 });
+    expect(html).toMatch(/diamond-graphic b1 b2 b3 b4 p1 p2 hr"/);
+    expect(html).toContain('state-scored');
+    expect(html).toContain('title="タイブレークの置きランナー（二塁） → 得点"');
+    const fromFirst = renderCellHTML({ resultType: 'TIEBREAK_RUNNER', basesReached: 4, runnerEvents: [T('WILD_PITCH', 2)] }, { isPlaced: true, startBase: 1 });
+    expect(fromFirst).toMatch(/diamond-graphic b1 b2 b3 b4 p1 hr"/);
+    expect(fromFirst).toMatch(/ev-q2">[^]*?>WP</);
+  });
+});
+
+describe('renderCellHTML: fielder numbers and sizes', () => {
+  it('normalises fielder numbers typed without dashes or in full width', () => {
+    expect(textOf(renderCellHTML(cellFor('GROUNDOUT', { positions: '63' })))).toContain('6-3');
+    expect(textOf(renderCellHTML(cellFor('DOUBLE_PLAY', { positions: '６４３' })))).toContain('6-4-3');
+  });
+
+  it('picks a smaller size for longer paths and wide free text', () => {
+    expect(renderCellHTML(cellFor('FLYOUT', { positions: '8' }))).toContain('cell-result fs-l');
+    expect(renderCellHTML(cellFor('GROUNDOUT', { positions: '6-3' }))).toContain('cell-result fs-m');
+    expect(renderCellHTML(cellFor('GROUNDOUT', { positions: '6-4-3' }))).toContain('cell-result fs-s');
+    expect(renderCellHTML(cellFor('GROUNDOUT', { positions: '1-6-4-3' }))).toContain('cell-result fs-xs');
+    // 3 full-width characters are as wide as 6 half-width ones
+    expect(renderCellHTML(cellFor('GROUNDOUT', { positions: '遊ゴロ' }))).toContain('cell-result fs-xs');
+  });
+});
+
+describe('renderCellHTML: hostile or broken data', () => {
+  it('ignores prototype keys used as result or event types', () => {
+    for (const key of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(renderCellHTML({ resultType: key, basesReached: 1, runnerEvents: [] })).toBe('');
+      const html = renderCellHTML({ resultType: 'SINGLE', positions: '7', basesReached: 2, runnerEvents: [{ type: key }, T('STOLEN_BASE', 2)] });
+      clean(html);
+      expect(html.match(/class="cell-event-tag"/g)).toHaveLength(1);
+      expect(renderLegendSample(key)).toBe('');
+    }
+  });
+
+  it('never lets quotes or markup out of the title attribute or the text', () => {
+    const nasty = ['"onmouseover="alert(1)', "'><svg onload=alert(1)>", '6-3"><img src=x>', '&lt;b&gt;'];
+    for (const id of Object.keys(RESULT_TYPES)) {
+      for (const positions of nasty) {
+        const html = renderCellHTML(cellFor(id, { positions, runnerEvents: [T('STOLEN_BASE', 2)] }));
+        clean(html);
+        expect(html).not.toMatch(/<(img|svg onload|script)/i);
+        expect(html).not.toMatch(/"onmouseover=/);
+        // every attribute value is closed by its own quote
+        for (const m of html.matchAll(/<[a-z]+((?:\s+[a-z-]+="[^"]*")*)\s*\/?>/g)) expect(m[0]).not.toContain('="="');
+      }
+    }
+    // already-escaped text is escaped again (shown literally, not decoded)
+    expect(renderCellHTML(cellFor('GROUNDOUT', { positions: '&lt;b&gt;' }))).toContain('&amp;lt;b&amp;…');
+  });
+});
+
+describe('renderLegendSample: same drawing as the sheet', () => {
+  for (const id of Object.keys(RESULT_TYPES)) {
+    it(`${id} sample equals the export cell`, () => {
+      const rt = RESULT_TYPES[id];
+      const cell = {
+        resultType: id, positions: SAMPLE_POSITIONS[id] || '', rbi: 0,
+        basesReached: rt.isOut ? 0 : rt.bases, outNumber: rt.isOut ? 1 : null, runnerEvents: [],
+      };
+      const sample = renderLegendSample(id);
+      expect(sample).toBe(`<div class="legend-cell" aria-hidden="true">${renderCellHTML(cell, { forExport: true })}</div>`);
+    });
+  }
+});
+
+describe('help guide: runner-event examples', () => {
+  it('uses example sentences that do not skip a base', () => {
+    const html = helpHTML();
+    for (const sentence of [
+      '例: レフト前ヒット → 二塁へ盗塁',
+      '例: ライトへの三塁打 → 暴投で生還（得点）',
+      '例: レフト前ヒット → 二塁へ盗塁 → 捕逸で三塁へ',
+      '例: レフト前ヒット → ボークで二塁へ',
+      '例: センターへの二塁打 → エラーの間に三塁へ',
+      '例: レフト前ヒット → 二塁で盗塁死【1アウト目】',
+      '例: レフト前ヒット → 一塁で牽制死【2アウト目】',
+      '例: レフト前ヒット → 二塁へ進む → 三塁で走塁死【1アウト目】',
+    ]) expect(html).toContain(sentence);
+  });
+});
+
+describe('renderHelp', () => {
+  it('falls back to #help-content and binds its click handler once', async () => {
+    const { renderHelp } = await import('../src/help.js');
+    const listeners = [];
+    const el = { innerHTML: '', dataset: {}, addEventListener: (type, fn) => listeners.push(type) };
+    const saved = globalThis.document;
+    globalThis.document = { getElementById: id => (id === 'help-content' ? el : null) };
+    try {
+      renderHelp();
+      renderHelp();
+      renderHelp(el);
+    } finally {
+      if (saved === undefined) delete globalThis.document;
+      else globalThis.document = saved;
+    }
+    expect(el.innerHTML).toBe(helpHTML());
+    expect(listeners).toEqual(['click']);
+  });
+});

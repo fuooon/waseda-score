@@ -5,7 +5,9 @@
    drawing scales with the sheet cell (100x80 / 80x64 / 70x56) and with the
    samples of the symbol guide. Each size has a px fallback first.
    Sizes follow the cell height; min(…cqh, …cqw) shrinks them in cells that
-   are narrower than the usual 5:4 (e.g. 52x60) so nothing collides. */
+   are narrower than the usual 5:4 (e.g. 52x60) so nothing collides.
+   Positions use % of the cell (same as cqw/cqh, works everywhere), so a
+   browser without container queries (iOS 15) still draws a usable cell. */
 
 .cell-content {
   position: absolute;
@@ -44,8 +46,12 @@
   border: 1px solid #c4bba9;
   transform: translate(-50%, -50%) rotate(45deg);
   z-index: 2;
+  /* a custom property has no parse-time fallback: set the cq value only
+     where it is understood, or the path would not be drawn at all */
   --path-w: 2.5px;
-  --path-w: max(2px, min(3.4cqh, 3.06cqw));
+}
+@supports (width: 1cqh) {
+  .diamond-graphic { --path-w: max(2px, min(3.4cqh, 3.06cqw)); }
 }
 
 /* Base path the player covered (red) */
@@ -94,9 +100,9 @@
 
 .cell-result {
   position: absolute;
-  right: 3cqw;
-  bottom: 4cqh;
-  max-width: 48cqw;
+  right: 3%;
+  bottom: 4%;
+  max-width: 48%;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -259,12 +265,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: 1px;
-  max-width: 47cqw;
+  max-width: 47%;
   z-index: 4;
 }
-.cell-events.ev-q2 { top: 3cqh; right: 3cqw; justify-content: flex-end; }  /* 二塁 */
-.cell-events.ev-q3 { top: 3cqh; left: 3cqw; }                              /* 三塁 */
-.cell-events.ev-q4 { bottom: 3cqh; left: 3cqw; }                           /* 本塁 */
+.cell-events.ev-q2 { top: 3%; right: 3%; justify-content: flex-end; }  /* 二塁 */
+.cell-events.ev-q3 { top: 3%; left: 3%; }                              /* 三塁 */
+.cell-events.ev-q4 { bottom: 3%; left: 3%; }                           /* 本塁 */
 
 .cell-event-tag {
   display: inline-block;
@@ -324,8 +330,8 @@
 .cell-content:not(.wcell) > .cell-positions,
 .cell-content:not(.wcell) > .cell-symbol {
   position: absolute;
-  right: 3cqw;
-  bottom: 4cqh;
+  right: 3%;
+  bottom: 4%;
   font-size: 12px;
   font-size: 20cqh;
   font-weight: 700;

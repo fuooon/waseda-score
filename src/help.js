@@ -70,20 +70,27 @@ const RUNNER_NOTES = {
   RUNNER_OUT: '走っている途中でアウトになりました（封殺・タッチアウト・飛び出しなど）。併殺で一緒にアウトになった走者もこれです。',
 };
 
-// Sample situation for each runner event (base = where it happened)
+// Sample situation for each runner event (base = where it happened). Each
+// sample starts from the base the batting result reached, so the example
+// sentence never skips a base, and together they show every base area.
 const RUNNER_SAMPLES = {
   STOLEN_BASE: { base: 2, basesReached: 2 },
-  WILD_PITCH: { base: 3, basesReached: 3 },
-  PASSED_BALL: { base: 3, basesReached: 3 },
+  WILD_PITCH: { resultType: 'TRIPLE', positions: '9', base: 4, basesReached: 4 },
+  PASSED_BALL: { before: [{ type: 'STOLEN_BASE', base: 2 }], base: 3, basesReached: 3 },
   BALK: { base: 2, basesReached: 2 },
-  ADVANCE_ON_ERROR: { base: 4, basesReached: 4 },
+  ADVANCE_ON_ERROR: { resultType: 'DOUBLE', positions: '8', base: 3, basesReached: 3 },
   CAUGHT_STEALING: { base: 2, basesReached: 1, outNumber: 1 },
   PICKOFF: { base: 1, basesReached: 1, outNumber: 2 },
   RUNNER_OUT: { base: 3, basesReached: 2, outNumber: 1 },
 };
 
 // Symbols shown next to the label (only for results drawn with a symbol)
+const HIT_LINES = { SINGLE: 1, DOUBLE: 2, TRIPLE: 3 };
+
 function symbolChip(rt) {
+  // hit marks drawn exactly like the cells (styles/cell.css .hit-mark)
+  // (the zero-width space keeps the chip one text line high)
+  if (HIT_LINES[rt.id]) return `<span class="hg-sym hg-sym-hit"><span class="hit-mark hit-${HIT_LINES[rt.id]}"></span>&#8203;</span>`;
   if (rt.id === 'STRIKEOUT_LOOK') return '<span class="hg-sym"><span class="sym-k sym-mirror">K</span></span>';
   if (rt.id === 'STRIKEOUT_SWING' || rt.id === 'STRIKEOUT_WILD') return '<span class="hg-sym"><span class="sym-k">K</span></span>';
   if (rt.batType && rt.category === 'out' && rt.id !== 'DOUBLE_PLAY' && rt.id !== 'INFIELD_FLY') return '';
@@ -95,6 +102,9 @@ function symbolChip(rt) {
 // ============================================
 // Building blocks
 // ============================================
+
+// The run mark as the cells draw it (red ●). The out count ●●○ of the status bar stays black.
+const RUN = '<span class="hg-run" style="color:var(--color-red, #C62828)">●</span>';
 
 function section(id, title, body) {
   return `<section class="hg-section" id="${id}"><h3>${title}</h3>${body}</section>`;
@@ -126,7 +136,7 @@ function mapDiagram() {
     '<div class="bg-line line-h-cross"></div><div class="bg-line line-v-cross"></div>' +
     '<div class="diamond-graphic"></div>' +
     label('q3', '三塁', '') + label('q2', '二塁', '') + label('q4', '本塁', '') +
-    label('q1', '一塁', '打った結果') + label('qc', '<span class="hg-roman">Ⅰ</span>・●', '') +
+    label('q1', '一塁', '打った結果') + label('qc', `<span class="hg-roman">Ⅰ</span>・${RUN}`, '') +
     '</div></div>';
 }
 
@@ -148,7 +158,7 @@ function basicsHTML() {
         <li><b>右下（一塁）</b>：打った結果</li>
         <li><b>右上・左上・左下</b>：二塁・三塁・本塁へ進んだ理由（盗塁など）</li>
         <li><b>赤い線</b>：その選手が進んだ塁</li>
-        <li><b>真ん中</b>：<span class="hg-roman">Ⅰ Ⅱ Ⅲ</span>＝何アウト目か、●＝得点</li>
+        <li><b>真ん中</b>：<span class="hg-roman">Ⅰ Ⅱ Ⅲ</span>＝何アウト目か、${RUN}＝得点</li>
       </ul>
     </div>
     <div class="hg-row">
@@ -159,7 +169,7 @@ function basicsHTML() {
   const fates = block('打者の行き先は3つだけ', `
     <p>打席に立った打者は、その回が終わるまでに必ず次のどれか1つになります。</p>
     <div class="hg-trio">
-      ${figure(sampleCell({ resultType: 'SINGLE', positions: '7', basesReached: 4 }), '<b>得点</b><br>ホームに還った（●）')}
+      ${figure(sampleCell({ resultType: 'SINGLE', positions: '7', basesReached: 4 }), `<b>得点</b><br>ホームに還った（${RUN}）`)}
       ${figure(sampleCell({ resultType: 'GROUNDOUT', positions: '6-3', outNumber: 1 }), '<b>アウト</b><br>真ん中に何アウト目か')}
       ${figure(sampleCell({ resultType: 'WALK', basesReached: 2 }), '<b>残塁</b><br>塁に残ったまま攻撃が終わった')}
     </div>
@@ -176,15 +186,15 @@ function basicsHTML() {
     <p class="hg-tip">間違えたときは、マスをもう一度タップして選び直すか、「クリア」で消してください。</p>`);
 
   const runs = block('得点と打点', `
-    <p>走者がホームに還ったら、<b>その走者のマス</b>を「得点」にします。ランナー欄で「得点」を選ぶと自動で付き、マスの真ん中に ● が付きます。</p>
+    <p>走者がホームに還ったら、<b>その走者のマス</b>を「得点」にします。ランナー欄で「得点」を選ぶと自動で付き、マスの真ん中に ${RUN} が付きます。</p>
     <p><b>打点</b>は、走者を還した打者に付きます。</p>
     <div class="hg-trio hg-duo">
       ${figure(sampleCell({ resultType: 'SINGLE', positions: '7', basesReached: 4 }), '1番：ヒットで出て<br>ホームに還った（得点）')}
       ${figure(sampleCell({ resultType: 'DOUBLE', positions: '8', rbi: 1, basesReached: 2 }), '2番：二塁打で<br>1番を還した（打点1）')}
     </div>
     <ul class="hg-list">
-      <li>チームの得点は ● の数です。打点は得点に足しません（同じ1点を2回数えてしまうため）。</li>
-      <li>ホームランは打者自身にも ● が付き、打点は「還った走者の数＋1」です。</li>
+      <li>チームの得点は ${RUN} の数です。打点は得点に足しません（同じ1点を2回数えてしまうため）。</li>
+      <li>ホームランは打者自身にも ${RUN} が付き、打点は「還った走者の数＋1」です。</li>
       <li>打点が付かない得点：併殺打の間の得点、暴投・捕逸・ボーク・盗塁での生還、エラーでの生還など。</li>
     </ul>`);
 
@@ -266,14 +276,14 @@ function runnerEventsHTML() {
   const items = Object.values(RUNNER_EVENTS).map(ev => {
     const s = RUNNER_SAMPLES[ev.id] || { base: 2, basesReached: ev.isOut ? 1 : 2, outNumber: ev.isOut ? 1 : null };
     const cell = {
-      resultType: 'SINGLE', positions: '7', rbi: 0,
+      resultType: s.resultType || 'SINGLE', positions: s.positions || '7', rbi: 0,
       basesReached: s.basesReached, outNumber: ev.isOut ? s.outNumber : null,
-      runnerEvents: [{ type: ev.id, base: s.base }],
+      runnerEvents: [...(s.before || []), { type: ev.id, base: s.base }],
     };
     const chip = `<span class="hg-sym hg-sym-event" style="color:${ev.color};border-color:${ev.color}">${escapeHtml(ev.symbol)}</span>`;
     return item(sampleCell(cell), `${chip}${escapeHtml(ev.label)}`, '例: ' + describeCell(cell), RUNNER_NOTES[ev.id] || '');
   }).join('');
-  return block('走塁の記号', '<p class="hg-cat-note">走者のマスの、その出来事が起きた塁の区画（二塁＝右上、三塁＝左上、本塁＝左下）に書きます。アウトの記号（赤地）が付いたマスには、真ん中に何アウト目かも書きます。</p>' + items);
+  return block('走塁の記号', '<p class="hg-cat-note">走者のマスの、その出来事が起きた塁の区画（二塁＝右上、三塁＝左上、本塁＝左下）に書きます。一塁での牽制死などは、右下の打撃結果の上に書きます。アウトの記号（赤地）が付いたマスには、真ん中に何アウト目かも書きます。</p>' + items);
 }
 
 function marksHTML() {
@@ -284,7 +294,7 @@ function marksHTML() {
       ${figure(sampleCell({ resultType: 'GROUNDOUT', positions: '6-3', outNumber: 3 }, { inningEnd: true }), '<span class="hg-roman">Ⅲ</span>＝3アウト目<br>右下の // はチェンジ')}
     </div>
     <ul class="hg-list">
-      <li><b>● </b>：ホームに還った（得点）。</li>
+      <li><b>${RUN}</b>：ホームに還った（得点）。</li>
       <li><b>赤い線</b>：その選手が進んだ塁。一塁までなら右下の1辺、ホームまでなら4辺すべて。</li>
       <li><b>//</b>：3つ目のアウトのマスの右下に付けて、その回の攻撃が終わったことを示します。</li>
     </ul>
@@ -309,8 +319,10 @@ export function helpHTML() {
   return `<div class="hg">${jump}${basicsHTML()}${symbolsHTML()}</div>`;
 }
 
-// Renders the guide into #help-content. Safe to call every time the page is shown.
+// Renders the guide into `container` (default: #help-content). Safe to call
+// every time the page is shown.
 export function renderHelp(container) {
+  if (!container && typeof document !== 'undefined') container = document.getElementById('help-content');
   if (!container) return;
   container.innerHTML = helpHTML();
   if (container.dataset.helpBound) return;

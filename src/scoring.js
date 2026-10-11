@@ -681,17 +681,25 @@ function checkHalf(A, h, issues) {
   for (const e of h.cells) {
     const raw = e.cell.outNumber;
     const has = raw !== null && raw !== undefined && raw !== '';
+    const num = Number(raw);
+    // Shown in messages only when it reads as a number (never "NaN" or junk).
+    const shown = has && Number.isFinite(num) ? String(raw) : '';
     if (e.state !== 'OUT') {
-      if (has) add('C04', 'error', e.key, `${at(e)}アウトではないのに「${raw}アウト目」の印が付いています。`);
+      if (has) {
+        add('C04', 'error', e.key, shown
+          ? `${at(e)}アウトではないのに「${shown}アウト目」の印が付いています。`
+          : `${at(e)}アウトではないのに、アウトの印が付いています。`);
+      }
       continue;
     }
     if (!has) {
       add('C04', 'error', e.key, `${at(e)}アウトですが、何アウト目かが記録されていません。`);
       continue;
     }
-    const num = Number(raw);
     if (!Number.isInteger(num) || num < 1 || num > 3) {
-      if (!(h.outs > 3 && num > 3)) add('C04', 'error', e.key, `${at(e)}アウトの番号（${raw}）が正しくありません。1〜3のどれかです。`);
+      if (!(h.outs > 3 && num > 3)) {
+        add('C04', 'error', e.key, `${at(e)}アウトの番号${shown ? `（${shown}）` : ''}が正しくありません。1〜3のどれかです。`);
+      }
       continue;
     }
     if (!byNumber.has(num)) byNumber.set(num, []);
@@ -867,7 +875,19 @@ function checkGameEnd(A, issues) {
   if (E.computedReason === 'walkoff') {
     const margin = E.runsAtEnd.second - E.runsAtEnd.first;
     const last = endHalf.seq[endHalf.seq.length - 1];
-    if (margin >= 2 && (!last || last.cell.resultType !== 'HOMERUN')) {
+    // RBIs prove the winning run had scored by the end of that plate appearance,
+    // so nobody can bat after it.
+    const needed = E.runsAtEnd.first - (E.runsAtEnd.second - endHalf.runs) + 1;
+    let rbi = 0;
+    const winning = endHalf.seq.findIndex(e => (rbi += rbiOf(e.cell)) >= needed);
+    const after = winning >= 0 ? endHalf.seq[winning + 1] : null;
+    if (after) {
+      const who = b => batterLabel(A.game, endHalf.teamKey, b);
+      issues.push({
+        id: 'C17', severity: 'warning', teamKey: endHalf.teamKey, inning: endHalf.inning, key: after.key,
+        message: `${inningLabel(endHalf.inning, endHalf.teamKey)}：${who(endHalf.seq[winning].batterIdx)}の打席で勝ち越し点が入り、その時点で試合終了（サヨナラ）です。そのあとの${who(after.batterIdx)}の打席は記録しないでください。`,
+      });
+    } else if (margin >= 2 && (!last || last.cell.resultType !== 'HOMERUN')) {
       issues.push({
         id: 'C17', severity: 'warning', teamKey: endHalf.teamKey, inning: endHalf.inning, key: last ? last.key : null,
         message: `${inningLabel(endHalf.inning, endHalf.teamKey)}：サヨナラの場合、勝ち越し点が入った時点で試合終了です（本塁打を除く）。その後の得点や打者が入っていないか確認してください。`,
@@ -1040,7 +1060,12 @@ export function recordPlateAppearance(game, target, result = {}, runnerUpdates =
   const requested = validOutNumber(res.outNumber);
   const explicit = requested !== null && requested !== defaultNumber ? requested : null;
 
-  for (const update of Array.isArray(runnerUpdates) ? runnerUpdates : []) {
+  // Lead runner first, so that when one play retires two runners the out numbers
+  // do not depend on the order the input panel listed them in.
+  const updates = (Array.isArray(runnerUpdates) ? runnerUpdates : [])
+    .map((update, i) => ({ update, i, base: isObject(update) ? basesOf(raw[String(update.key)]) : 0 }))
+    .sort((a, b) => b.base - a.base || a.i - b.i);
+  for (const { update } of updates) {
     applyRunnerUpdate(game, teamKey, inning, raw, key, update);
   }
 
@@ -1075,8 +1100,10 @@ export function clearCell(game, teamKey, inning, key) {
   };
 }
 
-// Keeps out numbers 1..k without gaps in their current order (ties: priorityKey
-// first, then batting order; outs without a number go last). Non-outs lose their number.
+// Keeps out numbers 1..k without gaps in their current order (ties: batting order;
+// outs without a number go last). Non-outs lose their number.
+// priorityKey: the out whose number the user just chose; it ends up with exactly that
+// number (or the last one when it is too high) and the other outs shift around it.
 export function renumberOuts(game, teamKey, inning, priorityKey = null) {
   const t = toTeam(teamKey);
   const n = toInning(inning);
@@ -1086,9 +1113,15 @@ export function renumberOuts(game, teamKey, inning, priorityKey = null) {
   const rank = new Map(entries.map((e, i) => [e.key, i]));
   const pk = priorityKey === null || priorityKey === undefined ? null : String(priorityKey);
   const outs = [];
+  let pinned = null;
   for (const e of entries) {
-    if (e.state === 'OUT') outs.push(e);
-    else if (e.cell.outNumber !== null && e.cell.outNumber !== undefined) e.cell.outNumber = null;
+    if (e.state !== 'OUT') {
+      if (e.cell.outNumber !== null && e.cell.outNumber !== undefined) e.cell.outNumber = null;
+    } else if (e.key === pk) {
+      pinned = e;
+    } else {
+      outs.push(e);
+    }
   }
   outs.sort((a, b) => {
     const na = validOutNumber(a.cell.outNumber);
@@ -1098,10 +1131,12 @@ export function renumberOuts(game, teamKey, inning, priorityKey = null) {
       if (nb === null) return -1;
       return na - nb;
     }
-    if (a.key === pk) return -1;
-    if (b.key === pk) return 1;
     return rank.get(a.key) - rank.get(b.key);
   });
+  if (pinned) {
+    const wanted = validOutNumber(pinned.cell.outNumber);
+    outs.splice(wanted === null ? outs.length : Math.min(wanted - 1, outs.length), 0, pinned);
+  }
   outs.forEach((e, i) => { e.cell.outNumber = i + 1; });
 }
 

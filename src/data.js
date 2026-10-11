@@ -192,9 +192,13 @@ function loadGame() {
     const data = localStorage.getItem(STORAGE_KEYS.GAME);
     if (!data) return null;
     const parsed = JSON.parse(data);
-    if (!parsed || typeof parsed !== 'object') return null;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
     const game = new GameData();
-    Object.assign(game, parsed);
+    // Own keys only: a saved "__proto__" key would otherwise replace the prototype
+    // (Object.assign uses the setter) and strip the GameData methods.
+    for (const key of Object.keys(parsed)) {
+      if (key !== '__proto__') game[key] = parsed[key];
+    }
     // Fields that tell normalizeGame how old the save is must come from the save,
     // not from the constructor defaults.
     game.version = parsed.version ?? 1;

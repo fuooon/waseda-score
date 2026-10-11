@@ -316,7 +316,8 @@ function slotLabel(batterIdx, lineup) {
 
 // "打者5人：得点1・残塁1・アウト3 ✓"
 // ✓ when the half is complete, pa + placed = runs + lob + outs, and it has
-// 3 outs (or the game ended in it). Otherwise a short ⚠ reason is added.
+// 3 outs (or the game ended in it), at most 3 runners were left and the RBI
+// do not exceed the runs. Otherwise a short ⚠ reason is added.
 // half = scoring.halfInning(...) result. opts.detail adds who scored / was left on base.
 export function describeHalfInning(half, lineup, opts = {}) {
   if (!half || typeof half !== 'object') return '';
@@ -354,9 +355,12 @@ export function describeHalfInning(half, lineup, opts = {}) {
     // A half may end with fewer than 3 outs only when the game ended there
     // (gameOver / nextBatter null); with later data it means a missing out.
     const gameEnded = outs < 3 && (half.gameOver === true || half.nextBatter === null);
+    const rbi = toCount(half.rbi);
     if (total !== sum) text += ` ⚠ 人数が合いません（${total}人 ≠ 得点＋残塁＋アウト ${sum}）`;
     else if (outs > 3) text += ` ⚠ アウトが${outs}つあります`;
     else if (outs < 3 && !gameEnded) text += ` ⚠ アウトが${outs}つしかありません`;
+    else if (onBase > 3) text += ` ⚠ 残塁が${onBase}人います（塁は3つ）`;
+    else if (rbi > runs) text += ` ⚠ 打点${rbi}が得点${runs}より多くなっています`;
     else text += gameEnded ? ' ✓（試合終了）' : ' ✓';
   } else {
     text += '（攻撃中）';
