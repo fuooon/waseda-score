@@ -1,0 +1,392 @@
+/* ============================================
+   Image export (export.js)
+   ============================================ */
+
+/* The node html2canvas draws. It sits off-screen while the image is made and
+   uses the wide-screen cell sizes on every device. */
+.export-sheet {
+  --cell-width: 100px;
+  --cell-height: 80px;
+  --player-col-width: 180px;
+  position: absolute;
+  top: 0;
+  left: -10000px;
+  z-index: -1;
+  width: max-content;
+  min-width: 600px;
+  padding: 28px 32px 32px;
+  background: #FFFEF9;
+  color: #2C2416;
+  font-family: var(--font-main);
+  font-size: 14px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.export-sheet *,
+.export-sheet *::before,
+.export-sheet *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* ============================================
+   Header
+   ============================================ */
+
+.export-header {
+  margin-bottom: 18px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid #1B7A3D;
+}
+
+.export-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.export-title {
+  color: #145C2E;
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+}
+
+.export-status {
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: #1B7A3D;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.export-status.is-progress {
+  background: #E65100;
+}
+
+.export-meta {
+  margin-top: 6px;
+  color: #5A4E3C;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.export-sep {
+  margin: 0 6px;
+  color: #8B7D6B;
+}
+
+.export-matchup {
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.export-side {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: #E8F5E9;
+  color: #145C2E;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.8;
+  vertical-align: 3px;
+}
+
+.export-team {
+  word-break: break-all;
+}
+
+.export-vs {
+  margin: 0 16px;
+  color: #8B7D6B;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.export-result {
+  margin-top: 6px;
+  color: #2C2416;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.export-result.is-final {
+  color: #C62828;
+}
+
+.export-sub {
+  margin-top: 6px;
+  color: #5A4E3C;
+  font-size: 15px;
+}
+
+.export-label {
+  display: inline-block;
+  margin-right: 10px;
+  padding: 0 8px;
+  border-radius: 4px;
+  background: #FFF3E0;
+  color: #B26A00;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.8;
+}
+
+/* ============================================
+   Scoreboard
+   ============================================ */
+
+.export-board-wrap {
+  display: inline-block;
+}
+
+.export-board {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-top: 1px solid #A89C86;
+  border-left: 1px solid #A89C86;
+  background: #fff;
+  font-size: 18px;
+}
+
+.export-board th,
+.export-board td {
+  min-width: 40px;
+  height: 42px;
+  padding: 4px 6px;
+  border-right: 1px solid #A89C86;
+  border-bottom: 1px solid #A89C86;
+  text-align: center;
+  vertical-align: middle;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.export-board thead th {
+  height: 34px;
+  background: #1B7A3D;
+  color: #fff;
+  font-family: var(--font-main);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.export-board thead th.eb-total,
+.export-board thead th.eb-stat {
+  background: #E65100;
+}
+
+.export-board .eb-team-head {
+  text-align: left;
+  padding-left: 12px;
+}
+
+.export-board .eb-team {
+  min-width: 150px;
+  max-width: 280px;
+  padding: 4px 12px;
+  background: #FDF6E3;
+  font-family: var(--font-main);
+  font-size: 17px;
+  font-weight: 700;
+  text-align: left;
+  word-break: break-all;
+}
+
+.eb-side {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #E8F5E9;
+  color: #145C2E;
+  font-size: 12px;
+  line-height: 1.8;
+  vertical-align: 2px;
+}
+
+.eb-win {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #C62828;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.8;
+  vertical-align: 2px;
+}
+
+.export-board .eb-cell.eb-empty {
+  background: #FAF7EE;
+}
+
+.export-board .eb-cell.eb-x {
+  color: #5A4E3C;
+  font-weight: 800;
+}
+
+.export-board td.eb-total {
+  min-width: 48px;
+  background: #FFF3E0;
+  color: #C62828;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.export-board td.eb-stat {
+  min-width: 48px;
+  background: #FFFCF5;
+  font-size: 16px;
+}
+
+.export-board-note {
+  margin-top: 6px;
+  color: #8B7D6B;
+  font-size: 12px;
+}
+
+/* ============================================
+   Sheet clone (class "exporting"; sheet.css has the same base rules)
+   ============================================ */
+
+.export-sheet .export-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: fit-content;
+  margin-top: 22px;
+  padding: 0;
+}
+
+.exporting .sub-btn,
+.exporting .next-tag,
+.exporting .footer-mark {
+  display: none !important;
+}
+
+/* no sticky positioning: html2canvas would draw it at the scroll offset */
+.exporting .scoresheet-table thead th,
+.exporting .scoresheet-table .player-cell,
+.exporting .scoresheet-table thead th.player-header,
+.exporting .team-label {
+  position: static;
+}
+
+.exporting .scoresheet-table,
+.exporting .scoresheet-table .player-cell {
+  box-shadow: none;
+}
+
+/* html2canvas 1.4 skips the children of an inline-flex box: use flex */
+.exporting .team-label {
+  display: flex;
+  width: max-content;
+  max-width: none;
+  font-size: 15px;
+}
+
+.exporting .team-name,
+.exporting .scoresheet-table .player-name,
+.exporting .scoresheet-table .player-detail,
+.exporting .player-sub-entry,
+.exporting .sub-old-name {
+  overflow: visible;
+  white-space: normal;
+  word-break: break-all;
+}
+
+.exporting .player-sub-entry {
+  flex-wrap: wrap;
+}
+
+.exporting .scoresheet-table .player-name {
+  font-size: 13px;
+}
+
+/* current-column highlight, next batter and check markers are screen-only */
+.exporting .score-cell.active-cell,
+.exporting .score-cell.next-batter {
+  background-color: var(--color-paper);
+  box-shadow: none;
+}
+
+.exporting .score-cell.active-cell.has-result {
+  background-color: var(--color-cream);
+}
+
+.exporting .score-cell[class*="has-check-"]::before {
+  display: none;
+}
+
+.exporting .scoresheet-table thead th.inning-head.active-col {
+  background: var(--color-green);
+}
+
+.exporting .scoresheet-table .total-row .inning-footer.active-col {
+  background: var(--color-green-light);
+}
+
+/* ============================================
+   Export modal
+   ============================================ */
+
+.export-checks-note {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.export-checks-note.is-ok {
+  background: var(--color-green-light);
+  color: var(--color-green-dark);
+}
+
+.export-checks-note.has-issues {
+  background: #FFF8E1;
+  color: #8D5A00;
+}
+
+#export-modal .export-options .btn {
+  min-height: 48px;
+}
+
+#export-modal .export-options .btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+#export-modal .export-options .btn.is-busy {
+  opacity: 1;
+}
+
+#export-image {
+  display: block;
+  max-height: 50vh;
+  margin-left: auto;
+  margin-right: auto;
+  object-fit: contain;
+  background: #fff;
+}
+
+.export-actions .btn {
+  min-height: 44px;
+}
+
+.export-hint {
+  margin-top: 10px;
+  color: var(--color-ink-lighter);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}

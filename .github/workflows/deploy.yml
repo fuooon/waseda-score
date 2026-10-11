@@ -3,6 +3,8 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [master]
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -10,8 +12,9 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  # never cancel a Pages deployment half-way
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -25,14 +28,17 @@ jobs:
           cache: npm
 
       - run: npm ci
+      - run: npm test
       - run: npm run build
 
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: dist
 
   deploy:
     needs: build
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

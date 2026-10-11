@@ -1,37 +1,314 @@
 // ============================================
 // Main Entry Point - App Router & Navigation
 // ============================================
+//
+// Pages: game-setup → lineup → scoresheet are the main flow. help,
+// team-members and history (and the lineup page in edit mode) are "sub pages":
+// they remember where the user came from, and ← 戻る / the phone's back button
+// return there. Nothing here deletes a game without asking: 🏟️ 新しい試合
+// asks first and moves the current game to 過去の試合.
+//
+// Every init* function binds its listeners once; calling it again only swaps
+// the game reference and re-renders.
 
 import './style.css';
+import './styles/flow.css';
 import { loadGame, saveGame, clearGame } from './data.js';
-import { initTeamMembers } from './team-members.js';
-import { initGameSetup } from './game-setup.js';
-import { initLineup } from './lineup.js';
-import { initScoresheet, updateScoresheet } from './scoresheet.js';
+import { initTeamMembers, refreshTeams } from './team-members.js';
+import { initGameSetup, showGameSetup, refreshPresets } from './game-setup.js';
+import { initLineup, lineupCanLeave, getLineupMode, refreshLineup } from './lineup.js';
+import { initScoresheet } from './scoresheet.js';
 import { initExport } from './export.js';
 import { renderHelp } from './help.js';
+import {
+  archiveGame, loadHistoryGame, initHistoryPage, renderHistoryList, gameHasData, isWorthArchiving,
+  gameHasRecords, matchLabel,
+} from './history.js';
+import { showToast, formatDateJa } from './util.js';
+
+const GAME_STORAGE_KEY = 'waseda-score-current-game';
+
+const SUB_PAGES = new Set(['help', 'team-members', 'history']);
 
 let currentGame = null;
+let currentPage = null;
+let pageStack = []; // pages to go back to from sub pages (bottom = a main page)
+let historyEntryPushed = false; // a browser-history entry stands for the open sub page
+let ignorePops = 0;
+
+const el = id => document.getElementById(id);
 
 // ============================================
 // Page Navigation
 // ============================================
 
-function showPage(pageId) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const page = document.getElementById(`page-${pageId}`);
-  if (page) {
-    page.classList.add('active');
-    // Re-trigger animation
-    page.style.animation = 'none';
-    page.offsetHeight; // reflow
-    page.style.animation = '';
-  }
+function isSubPage(page) {
+  return SUB_PAGES.has(page) || (page === 'lineup' && getLineupMode() === 'edit');
+}
 
-  // Show/hide export button
-  const exportBtn = document.getElementById('export-btn');
-  if (exportBtn) {
-    exportBtn.style.display = pageId === 'scoresheet' ? '' : 'none';
+function showPage(pageId) {
+  const page = el(`page-${pageId}`);
+  if (!page) return;
+  currentPage = pageId;
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p === page));
+  // Re-trigger the fade-in animation
+  page.style.animation = 'none';
+  void page.offsetHeight;
+  page.style.animation = '';
+
+  const exportBtn = el('export-btn');
+  if (exportBtn) exportBtn.style.display = pageId === 'scoresheet' ? '' : 'none';
+  document.body.dataset.page = pageId;
+
+  window.scrollTo(0, 0);
+  syncBrowserHistory();
+}
+
+// Forward navigation. Sub pages remember the page below them; a main page
+// clears the stack.
+function goTo(pageId) {
+  if (pageId === currentPage) {
+    showPage(pageId);
+    return;
+  }
+  if (isSubPage(pageId)) {
+    const i = pageStack.indexOf(pageId);
+    if (i >= 0) pageStack.length = i; // already below us: go back to it instead of looping
+    else if (currentPage) pageStack.push(currentPage);
+  } else {
+    pageStack = [];
+  }
+  showPage(pageId);
+}
+
+function fallbackPage() {
+  if (!currentGame) return 'game-setup';
+  return currentGame.lineupDone ? 'scoresheet' : 'lineup';
+}
+
+// ← 戻る on a sub page (also the phone's back button).
+function goBack() {
+  if (currentPage === 'lineup' && getLineupMode() === 'edit' && !lineupCanLeave()) {
+    syncBrowserHistory();
+    return;
+  }
+  let target = pageStack.pop() || fallbackPage();
+  if (target === 'scoresheet' && !currentGame?.lineupDone) target = fallbackPage();
+  if (target === 'lineup' && !currentGame) target = 'game-setup';
+  if (target === 'scoresheet') {
+    enterScoresheet();
+  } else if (target === 'lineup' && getLineupMode() === 'edit' && !isSubPageBelow('scoresheet')) {
+    openLineupDraft(); // the edit session is over; show the normal lineup page
+  } else {
+    // The forms keep what was typed; registered teams / players may have changed.
+    if (target === 'game-setup') refreshPresets();
+    if (target === 'lineup') refreshLineup();
+    showPage(target);
+  }
+}
+
+function isSubPageBelow(page) {
+  return pageStack.includes(page);
+}
+
+// The phone's back button closes a sub page instead of leaving the app.
+function syncBrowserHistory() {
+  const wantEntry = pageStack.length > 0 && isSubPage(currentPage);
+  if (wantEntry && !historyEntryPushed) {
+    history.pushState({ wasedaSubPage: true }, '');
+    historyEntryPushed = true;
+  } else if (!wantEntry && historyEntryPushed) {
+    historyEntryPushed = false;
+    ignorePops++;
+    history.back();
+  }
+}
+
+function handlePopState() {
+  if (ignorePops > 0) {
+    ignorePops--;
+    return;
+  }
+  if (!historyEntryPushed) return;
+  historyEntryPushed = false;
+  goBack();
+}
+
+// ============================================
+// Game flow
+// ============================================
+
+function enterScoresheet() {
+  if (!currentGame) {
+    showGameSetup();
+    goTo('game-setup');
+    return;
+  }
+  pageStack = [];
+  showPage('scoresheet'); // visible first so the sheet can measure and scroll
+  initScoresheet(currentGame);
+  initExport(currentGame);
+}
+
+const lineupCallbacks = {
+  onComplete: (game) => {
+    currentGame = game;
+    enterScoresheet();
+  },
+  onBack: (game) => {
+    currentGame = game;
+    showGameSetup({ game });
+    goTo('game-setup');
+  },
+  onEditDone: (game) => {
+    currentGame = game;
+    showToast('スタメンを保存しました', 'success', 2000);
+    enterScoresheet();
+  },
+  onEditCancel: () => goBack(),
+};
+
+function openLineupDraft() {
+  if (!currentGame) return;
+  initLineup(currentGame, lineupCallbacks, { mode: 'new' });
+  pageStack = [];
+  showPage('lineup');
+}
+
+function openLineupEdit() {
+  if (!currentGame) return;
+  if (!currentGame.lineupDone) {
+    openLineupDraft();
+    return;
+  }
+  const from = currentPage;
+  initLineup(currentGame, lineupCallbacks, { mode: 'edit' });
+  // lineup is a sub page now (edit mode): remember where we came from
+  if (from && from !== 'lineup') pageStack = [...pageStack.filter(p => p !== from), from];
+  if (!pageStack.length) pageStack = ['scoresheet'];
+  showPage('lineup');
+}
+
+// Goes back to the game in progress (or its unfinished lineup).
+function resumeCurrentGame() {
+  if (!currentGame) {
+    goTo('game-setup');
+    return;
+  }
+  if (currentGame.lineupDone) enterScoresheet();
+  else if (currentPage === 'lineup' && getLineupMode() === 'new') showPage('lineup');
+  else openLineupDraft();
+}
+
+// Archives the current game (when it has anything worth keeping).
+// Returns false when the user chose to stop.
+function archiveCurrentGame() {
+  if (!currentGame || !isWorthArchiving(currentGame)) return true;
+  const result = archiveGame(currentGame);
+  if (!result.ok) {
+    return confirm('いまの試合を「過去の試合」に保存できませんでした。\n保存しないまま続けますか？（いまの試合の記録は消えます）');
+  }
+  if (result.dropped.length) {
+    const old = result.dropped[0];
+    showToast(`いまの試合を「過去の試合」に保存しました（いちばん古い ${old.date ? formatDateJa(old.date) + ' の' : ''}試合は上限30試合を超えたので消えました）`, 'info', 5000);
+  } else {
+    showToast('いまの試合を「過去の試合」に保存しました', 'success', 3000);
+  }
+  return true;
+}
+
+function startNewGame() {
+  if (!leaveLineupEditGuard()) return;
+  if (currentGame && gameHasData(currentGame)) {
+    const keep = isWorthArchiving(currentGame);
+    const message = keep
+      ? `いまの試合（${matchLabel(currentGame)}）を終えて、新しい試合を始めますか？\n\nいまの試合は「📚 過去の試合」に保存されるので、あとで開けます。`
+      : '入力中の試合情報を消して、新しい試合を始めますか？';
+    if (!confirm(message)) return;
+    if (!archiveCurrentGame()) return;
+  }
+  // Confirmed above (or nothing was entered): the old game is in the history now.
+  clearGame();
+  currentGame = null;
+  showGameSetup({ game: null });
+  goTo('game-setup');
+}
+
+function openHistoryGame(id) {
+  if (currentGame && id === currentGame.id) {
+    resumeCurrentGame();
+    return;
+  }
+  const game = loadHistoryGame(id);
+  if (!game) {
+    showToast('この試合を読み込めませんでした', 'error', 4000);
+    renderHistoryList();
+    return;
+  }
+  if (currentGame && gameHasData(currentGame)) {
+    const message = `${matchLabel(game)} の試合を開きます。\nいま記録中の試合（${matchLabel(currentGame)}）は「過去の試合」に保存します。よろしいですか？`;
+    if (!confirm(message)) return;
+    if (!archiveCurrentGame()) return;
+  }
+  currentGame = game;
+  saveGame(currentGame);
+  if (currentGame.lineupDone || gameHasRecords(currentGame)) {
+    currentGame.lineupDone = true;
+    enterScoresheet();
+  } else {
+    openLineupDraft();
+  }
+  showToast(`${matchLabel(game)} の試合を開きました`, 'success', 2500);
+}
+
+function openHelp() {
+  renderHelp(el('help-content'));
+  goTo('help');
+}
+
+function openHistory() {
+  renderHistoryList();
+  goTo('history');
+}
+
+function openTeamMembers() {
+  initTeamMembers();
+  goTo('team-members');
+}
+
+// Leaving the lineup editor to a main page asks before discarding edits.
+function leaveLineupEditGuard() {
+  if (currentPage === 'lineup' && getLineupMode() === 'edit') return lineupCanLeave();
+  return true;
+}
+
+function navigate(page) {
+  switch (page) {
+    case 'scoresheet':
+      if (!leaveLineupEditGuard()) return;
+      resumeCurrentGame();
+      break;
+    case 'lineup-edit':
+      openLineupEdit();
+      break;
+    case 'lineup':
+      resumeCurrentGame();
+      break;
+    case 'help':
+      openHelp();
+      break;
+    case 'team-members':
+      openTeamMembers();
+      break;
+    case 'history':
+      openHistory();
+      break;
+    case 'game-setup':
+    case 'new-game':
+      startNewGame();
+      break;
+    default:
+      break;
   }
 }
 
@@ -40,79 +317,120 @@ function showPage(pageId) {
 // ============================================
 
 function openMenu() {
-  document.getElementById('side-menu').classList.remove('hidden');
-  document.getElementById('side-menu-overlay').classList.remove('hidden');
+  updateMenu();
+  el('side-menu').classList.remove('hidden');
+  el('side-menu-overlay').classList.remove('hidden');
 }
 
 function closeMenu() {
-  document.getElementById('side-menu').classList.add('hidden');
-  document.getElementById('side-menu-overlay').classList.add('hidden');
+  el('side-menu').classList.add('hidden');
+  el('side-menu-overlay').classList.add('hidden');
+}
+
+function updateMenu() {
+  const resume = el('menu-resume-item');
+  if (resume) {
+    resume.classList.toggle('hidden', !currentGame);
+    const btn = resume.querySelector('.menu-item');
+    if (btn) btn.textContent = currentGame && !currentGame.lineupDone ? '📝 スタメン入力に戻る' : '📋 スコアシートに戻る';
+  }
+  document.querySelectorAll('.menu-item').forEach(item => {
+    const page = item.dataset.page;
+    const active = (page === 'scoresheet' && (currentPage === 'scoresheet' || (currentPage === 'lineup' && getLineupMode() === 'new')))
+      || page === currentPage;
+    item.classList.toggle('current', active);
+  });
+}
+
+// ============================================
+// Data restored from a backup
+// ============================================
+
+function handleDataImported() {
+  refreshTeams();
+  currentGame = loadGame();
+  if (currentGame?.lineupDone) {
+    // swap the sheet's game reference now (its page is hidden)
+    initScoresheet(currentGame);
+    initExport(currentGame);
+  }
+  renderHistoryList();
+  updateMenu();
 }
 
 // ============================================
 // App Initialization
 // ============================================
 
-function init() {
-  // Menu
-  document.getElementById('menu-btn').addEventListener('click', openMenu);
-  document.getElementById('close-menu-btn').addEventListener('click', closeMenu);
-  document.getElementById('side-menu-overlay').addEventListener('click', closeMenu);
+function bindAppEvents() {
+  el('menu-btn').addEventListener('click', openMenu);
+  el('close-menu-btn').addEventListener('click', closeMenu);
+  el('side-menu-overlay').addEventListener('click', closeMenu);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !el('side-menu').classList.contains('hidden')) closeMenu();
+  });
 
-  // Menu items
   document.querySelectorAll('.menu-item').forEach(item => {
     item.addEventListener('click', () => {
-      const page = item.dataset.page;
       closeMenu();
-      if (page === 'game-setup') {
-        // Start new game
-        clearGame();
-        currentGame = null;
-        showPage('game-setup');
-      } else {
-        showPage(page);
-      }
+      navigate(item.dataset.page);
     });
   });
 
-  // Init team members (always available)
-  initTeamMembers();
-  renderHelp(document.getElementById('help-content')); // help page content (FLOW will move this to page show)
+  for (const id of ['help-back-btn', 'members-back-btn', 'history-back-btn']) {
+    el(id)?.addEventListener('click', goBack);
+  }
 
-  // Init game setup
+  document.addEventListener('app:navigate', (e) => navigate(e.detail?.page));
+  // The same game open in two tabs would overwrite each other's records.
+  window.addEventListener('storage', (e) => {
+    if (e.key === GAME_STORAGE_KEY && currentGame) {
+      showToast('別のタブ（ウィンドウ）でこの試合が変更されました。記録が上書きされないよう、どちらか一方だけで記録してください。', 'warning', 8000);
+    }
+  });
+  document.addEventListener('app:data-imported', handleDataImported);
+  window.addEventListener('popstate', handlePopState);
+}
+
+function init() {
+  bindAppEvents();
+  // Ask the browser not to clear our storage on its own (Safari clears sites
+  // that were not used for a while). Best effort; ignored when unsupported.
+  try {
+    navigator.storage?.persist?.().catch(() => {});
+  } catch {
+    // not available
+  }
+  initTeamMembers();
   initGameSetup((game) => {
     currentGame = game;
-    showPage('lineup');
-    initLineup(game, {
-      onComplete: (game) => {
-        currentGame = game;
-        showPage('scoresheet');
-        initScoresheet(game);
-        initExport(game);
-      },
-      onBack: () => {
-        showPage('game-setup');
-      }
-    });
+    openLineupDraft();
+  });
+  initHistoryPage({
+    onOpen: openHistoryGame,
+    currentGameId: () => currentGame?.id || null,
   });
 
-  // Try to resume existing game
-  const savedGame = loadGame();
-  if (savedGame && savedGame.lineupFirst && savedGame.lineupFirst.length > 0) {
-    currentGame = savedGame;
-
-    // Check if we have lineup data to go straight to scoresheet
-    if (savedGame.lineupSecond && savedGame.lineupSecond.length > 0) {
-      showPage('scoresheet');
-      initScoresheet(currentGame);
-      initExport(currentGame);
-    } else {
-      showPage('game-setup');
+  // Resume where the user left off.
+  const saved = loadGame();
+  if (saved && (saved.lineupDone || gameHasRecords(saved))) {
+    currentGame = saved;
+    if (!currentGame.lineupDone) {
+      currentGame.lineupDone = true; // records exist: the game has started
+      saveGame(currentGame);
     }
+    enterScoresheet();
+  } else if (saved) {
+    // Lineup not finished: back to the lineup page with what was entered.
+    currentGame = saved;
+    showGameSetup({ game: saved });
+    openLineupDraft();
   } else {
+    showGameSetup({ game: null });
     showPage('game-setup');
   }
 }
 
 // Start
-document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+else init();

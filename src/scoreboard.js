@@ -1,102 +1,73 @@
 // ============================================
-// Scoreboard - Inning-by-inning score display
+// Scoreboard - compact inning-by-inning board (#score-summary)
 // ============================================
+//
+// Every number comes from scoring.scoreboard(game): runs per half-inning
+// (blank = not played yet, 'X' = bottom half not needed), 計 (runs),
+// 安 (hits) and 失 (errors committed while fielding).
+// The half-inning being viewed (game.currentInning / currentHalf) is highlighted.
+// Cells carry data-team / data-inning so the sheet can move the cursor on tap.
+
+import { scoreboard } from './scoring.js';
+import { escapeHtml } from './util.js';
+
+const TEAM_KEYS = ['first', 'second'];
+
+function teamLabel(game, teamKey) {
+  const name = teamKey === 'first' ? game.teamFirst : game.teamSecond;
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  return trimmed || (teamKey === 'first' ? '先攻' : '後攻');
+}
+
+function runsText(value) {
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
 
 export function renderScoreboard(container, game) {
-  const innings = game.innings;
-  const maxInning = getMaxInningWithData(game);
+  if (!container || !game) return;
+  const sb = scoreboard(game);
+  const viewTeam = game.currentHalf === 'bottom' ? 'second' : 'first';
+  const viewInning = Number(game.currentInning) || 1;
 
-  let html = '<div style="display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem;">';
+  let html = '<table class="sb-table" aria-label="スコアボード"><thead><tr>';
+  html += '<th class="sb-team-head" scope="col"><span class="sr-only">チーム</span></th>';
+  for (const n of sb.columns) {
+    const cls = n === viewInning ? ' class="sb-col-current"' : '';
+    html += `<th scope="col"${cls}>${n}</th>`;
+  }
+  html += '<th class="sb-total" scope="col" title="得点の合計">計</th>';
+  html += '<th class="sb-stat" scope="col" title="安打">安</th>';
+  html += '<th class="sb-stat" scope="col" title="失策（守備のエラー）">失</th>';
+  html += '</tr></thead><tbody>';
 
-  // Team rows
-  ['first', 'second'].forEach(teamKey => {
-    const teamName = game.getTeamName(teamKey);
-    html += '<div class="score-summary-team">';
-    html += `<div class="score-summary-name">${escapeHtml(teamName)}</div>`;
-    html += '<div class="score-summary-runs">';
-
-    for (let i = 1; i <= maxInning; i++) {
-      const runs = game.getInningRuns(teamKey, i);
-      const isCurrent = (i === game.currentInning) &&
-        ((teamKey === 'first' && game.currentHalf === 'top') ||
-         (teamKey === 'second' && game.currentHalf === 'bottom'));
-      html += `<div class="score-summary-cell ${isCurrent ? 'active-cell' : ''}">${runs || (i <= maxInning ? '0' : '')}</div>`;
-    }
-
-    const total = game.getTotalRuns(teamKey);
-    html += `<div class="score-summary-cell total">${total}</div>`;
-    html += '</div></div>';
-  });
-
-  html += '</div>';
+  for (const teamKey of TEAM_KEYS) {
+    const line = sb[teamKey];
+    const isWinner = sb.final && sb.winner === teamKey;
+    const name = teamLabel(game, teamKey);
+    html += `<tr class="sb-row-${teamKey}${isWinner ? ' sb-winner' : ''}">`;
+    html += `<th class="sb-team" scope="row" title="${escapeHtml(name)}">` +
+      `<span class="sb-side">${teamKey === 'first' ? '先' : '後'}</span>${escapeHtml(name)}</th>`;
+    sb.columns.forEach((n, i) => {
+      const value = line.innings[i];
+      const cls = ['sb-cell'];
+      if (value === null || value === undefined) cls.push('sb-empty');
+      if (value === 'X') cls.push('sb-x');
+      if (teamKey === viewTeam && n === viewInning) cls.push('active-cell');
+      html += `<td class="${cls.join(' ')}" data-team="${teamKey}" data-inning="${n}">${runsText(value)}</td>`;
+    });
+    html += `<td class="sb-total">${line.R}</td>`;
+    html += `<td class="sb-stat">${line.H}</td>`;
+    html += `<td class="sb-stat">${line.E}</td>`;
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
   container.innerHTML = html;
 }
 
+// TEMPORARY (phase 2): kept only until export.js stops importing it; removed per CONTRACT.
 export function renderScoreboardForExport(game) {
-  const innings = game.innings;
-  const maxInning = getMaxInningWithData(game);
-  const date = game.date ? new Date(game.date).toLocaleDateString('ja-JP') : '';
-
-  let html = `
-    <div style="background: white; padding: 24px; font-family: 'Noto Sans JP', sans-serif; border-radius: 12px; min-width: 400px;">
-      <div style="text-align: center; margin-bottom: 16px;">
-        <div style="font-size: 1.4rem; font-weight: 700; color: #145C2E;">⚾ 試合結果</div>
-        <div style="font-size: 0.85rem; color: #5A4E3C;">${date}${game.field ? ' @ ' + escapeHtml(game.field) : ''}</div>
-      </div>
-      <table style="border-collapse: collapse; width: 100%; font-size: 0.9rem;">
-        <thead>
-          <tr style="background: #1B7A3D; color: white;">
-            <th style="padding: 8px 12px; text-align: left; border: 1px solid #145C2E;">チーム</th>
-  `;
-
-  for (let i = 1; i <= maxInning; i++) {
-    html += `<th style="padding: 8px 6px; text-align: center; border: 1px solid #145C2E; min-width: 28px;">${i}</th>`;
-  }
-  html += `<th style="padding: 8px 8px; text-align: center; border: 1px solid #145C2E; background: #FF8F00; min-width: 32px;">計</th>`;
-  html += `<th style="padding: 8px 8px; text-align: center; border: 1px solid #145C2E; background: #FF8F00; min-width: 32px;">安</th>`;
-  html += `<th style="padding: 8px 8px; text-align: center; border: 1px solid #145C2E; background: #FF8F00; min-width: 32px;">失</th>`;
-  html += '</tr></thead><tbody>';
-
-  ['first', 'second'].forEach(teamKey => {
-    const teamName = game.getTeamName(teamKey);
-    const bgColor = teamKey === 'first' ? '#FDF6E3' : '#FFFEF9';
-    html += `<tr style="background: ${bgColor};">`;
-    html += `<td style="padding: 8px 12px; font-weight: 600; border: 1px solid #D4C9B4; white-space: nowrap;">${escapeHtml(teamName)}</td>`;
-
-    for (let i = 1; i <= maxInning; i++) {
-      const runs = game.getInningRuns(teamKey, i);
-      html += `<td style="padding: 8px 6px; text-align: center; border: 1px solid #D4C9B4; font-weight: 500;">${runs}</td>`;
-    }
-
-    const total = game.getTotalRuns(teamKey);
-    const hits = game.getHitCount(teamKey);
-    const errors = game.getErrorCount(teamKey);
-
-    html += `<td style="padding: 8px 8px; text-align: center; border: 1px solid #D4C9B4; font-weight: 700; background: #FFF3E0; font-size: 1.1rem;">${total}</td>`;
-    html += `<td style="padding: 8px 8px; text-align: center; border: 1px solid #D4C9B4; font-weight: 600;">${hits}</td>`;
-    html += `<td style="padding: 8px 8px; text-align: center; border: 1px solid #D4C9B4; font-weight: 600;">${errors}</td>`;
-    html += '</tr>';
-  });
-
-  html += '</tbody></table>';
-  html += '<div style="text-align: center; margin-top: 12px; font-size: 0.75rem; color: #8B7D6B;">早稲田式スコアブック</div>';
-  html += '</div>';
-  return html;
-}
-
-function getMaxInningWithData(game) {
-  let max = game.innings;
-  for (const teamKey of ['first', 'second']) {
-    for (let i = 1; i <= 12; i++) {
-      const data = game.atBats[teamKey][i];
-      if (data && Object.keys(data).length > 0) max = Math.max(max, i);
-    }
-  }
-  return max;
-}
-
-function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  const box = { innerHTML: '' };
+  renderScoreboard(box, game);
+  return `<div style="background:#fff;padding:16px;">${box.innerHTML}</div>`;
 }

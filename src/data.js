@@ -5,7 +5,7 @@
 import {
   POSITIONS, POSITION_SHORT, BAT_LABELS, RESULT_TYPES, RUNNER_EVENTS, DEFAULT_INNINGS
 } from './rules.js';
-import { generateId } from './util.js';
+import { generateId, showToast } from './util.js';
 import { halfInning, teamTotals, normalizeGame } from './scoring.js';
 
 class TeamMember {
@@ -147,52 +147,99 @@ class GameData {
 // ============================================
 // Storage
 // ============================================
+//
+// Every write is wrapped: when localStorage is full or blocked (Safari with
+// all cookies blocked, some private modes) the user sees a toast and the app
+// keeps working from memory instead of stopping half-way.
 
 const STORAGE_KEYS = {
-  MEMBERS: 'waseda-score-members',
+  MEMBERS: 'waseda-score-members', // legacy (before teams); migrated by team-members.js
   TEAMS: 'waseda-score-teams',
   GAME: 'waseda-score-current-game',
+  HISTORY: 'waseda-score-history', // archived games: [{ id, savedAt, game }], newest first
 };
 
-function saveMembers(members) {
-  localStorage.setItem(STORAGE_KEYS.MEMBERS, JSON.stringify(members));
+const SAVE_ERROR_MESSAGE = '保存できませんでした（端末の空き容量やプライベートモードを確認してください）';
+
+const isPlainObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+function storageOrNull() {
+  try {
+    return globalThis.localStorage || null; // the getter itself throws when storage is blocked
+  } catch {
+    return null;
+  }
 }
 
-function loadMembers() {
+function readJSON(key) {
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.MEMBERS);
-    if (!data) return [];
-    return JSON.parse(data).map(m => new TeamMember(m));
+    const store = storageOrNull();
+    const raw = store ? store.getItem(key) : null;
+    return raw ? JSON.parse(raw) : null;
   } catch {
-    return [];
+    return null;
   }
+}
+
+// Returns true when written; on failure shows a toast and returns false.
+function writeJSON(key, value) {
+  try {
+    const store = storageOrNull();
+    if (!store) throw new Error('localStorage is not available');
+    store.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    showToast(SAVE_ERROR_MESSAGE, 'error', 5000);
+    return false;
+  }
+}
+
+function removeKey(key) {
+  try {
+    storageOrNull()?.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function saveMembers(members) {
+  return writeJSON(STORAGE_KEYS.MEMBERS, members);
+}
+
+// Legacy single-team member list (kept for migration).
+function loadMembers() {
+  const parsed = readJSON(STORAGE_KEYS.MEMBERS);
+  return Array.isArray(parsed) ? parsed.filter(isPlainObject).map(m => new TeamMember(m)) : [];
 }
 
 function saveTeams(teams) {
-  localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+  return writeJSON(STORAGE_KEYS.TEAMS, teams);
+}
+
+// Builds Team objects from parsed JSON, skipping junk entries.
+function teamsFromData(parsed) {
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(isPlainObject).map(t => new Team({
+    ...t,
+    name: typeof t.name === 'string' && t.name.trim() ? t.name : undefined,
+    members: Array.isArray(t.members) ? t.members.filter(isPlainObject) : [],
+  }));
 }
 
 function loadTeams() {
-  try {
-    const data = localStorage.getItem(STORAGE_KEYS.TEAMS);
-    if (!data) return [];
-    const parsed = JSON.parse(data);
-    return parsed.map(t => new Team(t));
-  } catch {
-    return [];
-  }
+  return teamsFromData(readJSON(STORAGE_KEYS.TEAMS));
 }
 
 function saveGame(game) {
-  localStorage.setItem(STORAGE_KEYS.GAME, JSON.stringify(game));
+  return writeJSON(STORAGE_KEYS.GAME, game);
 }
 
-function loadGame() {
+// Builds a normalized GameData from parsed JSON (a save, a history entry or a
+// backup). Returns null for anything that is not a game object.
+function gameFromData(parsed) {
+  if (!isPlainObject(parsed)) return null;
   try {
-    const data = localStorage.getItem(STORAGE_KEYS.GAME);
-    if (!data) return null;
-    const parsed = JSON.parse(data);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
     const game = new GameData();
     // Own keys only: a saved "__proto__" key would otherwise replace the prototype
     // (Object.assign uses the setter) and strip the GameData methods.
@@ -203,18 +250,42 @@ function loadGame() {
     // not from the constructor defaults.
     game.version = parsed.version ?? 1;
     if (typeof parsed.lineupDone !== 'boolean') delete game.lineupDone;
+    if (typeof game.id !== 'string' || !game.id) game.id = generateId();
     return normalizeGame(game);
   } catch {
     return null;
   }
 }
 
+function loadGame() {
+  return gameFromData(readJSON(STORAGE_KEYS.GAME));
+}
+
+// The saved current game as plain JSON (for backups), or null.
+function loadGameData() {
+  const parsed = readJSON(STORAGE_KEYS.GAME);
+  return isPlainObject(parsed) ? parsed : null;
+}
+
 function clearGame() {
-  localStorage.removeItem(STORAGE_KEYS.GAME);
+  return removeKey(STORAGE_KEYS.GAME);
+}
+
+// History entries as stored: [{ id, savedAt, game }] (game = plain JSON).
+function loadHistoryEntries() {
+  const parsed = readJSON(STORAGE_KEYS.HISTORY);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter(e => isPlainObject(e) && isPlainObject(e.game) && typeof e.id === 'string' && e.id);
+}
+
+function saveHistoryEntries(entries) {
+  return writeJSON(STORAGE_KEYS.HISTORY, entries);
 }
 
 export {
   POSITIONS, POSITION_SHORT, BAT_LABELS, RESULT_TYPES, RUNNER_EVENTS,
-  TeamMember, Team, AtBatResult, GameData,
-  saveMembers, loadMembers, saveTeams, loadTeams, saveGame, loadGame, clearGame
+  TeamMember, Team, AtBatResult, GameData, STORAGE_KEYS,
+  saveMembers, loadMembers, saveTeams, loadTeams, teamsFromData,
+  saveGame, loadGame, loadGameData, gameFromData, clearGame,
+  loadHistoryEntries, saveHistoryEntries,
 };

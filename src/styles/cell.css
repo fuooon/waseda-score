@@ -321,33 +321,3 @@
 }
 .legend-cell.legend-cell-lg { width: 150px; height: 118px; }
 .legend-cell.inning-end { margin-bottom: 6px; }
-
-/* ============================================
-   Legacy markup of the old scoresheet.js renderCellContent
-   (kept readable until the sheet uses renderCellHTML)
-   ============================================ */
-
-.cell-content:not(.wcell) > .cell-positions,
-.cell-content:not(.wcell) > .cell-symbol {
-  position: absolute;
-  right: 3%;
-  bottom: 4%;
-  font-size: 12px;
-  font-size: 20cqh;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-  z-index: 4;
-}
-.cell-content:not(.wcell) > .cell-inning-end {
-  position: absolute;
-  top: 1px;
-  right: 3px;
-  font-size: 10px;
-  font-weight: 700;
-  z-index: 4;
-}
-.cell-content:not(.wcell) > .cell-events {
-  left: 2px;
-  bottom: 1px;
-}

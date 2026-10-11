@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>早稲田式スコアブック</title>
   <meta name="description" content="少年野球向け早稲田式スコア記録アプリ。試合のスコアを簡単に記録し、画像で共有できます。" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -43,9 +43,11 @@
         </button>
       </div>
       <ul class="menu-list">
-        <li><button class="menu-item" data-page="game-setup">🏟️ 新しい試合</button></li>
-        <li><button class="menu-item" data-page="team-members">👥 メンバー管理</button></li>
-        <li><button class="menu-item" data-page="help">❓ 記号ガイド</button></li>
+        <li id="menu-resume-item" class="hidden"><button type="button" class="menu-item" data-page="scoresheet">📋 スコアシートに戻る</button></li>
+        <li><button type="button" class="menu-item" data-page="new-game">🏟️ 新しい試合</button></li>
+        <li><button type="button" class="menu-item" data-page="history">📚 過去の試合</button></li>
+        <li><button type="button" class="menu-item" data-page="team-members">👥 メンバー管理</button></li>
+        <li><button type="button" class="menu-item" data-page="help">❓ 記号ガイド</button></li>
       </ul>
     </nav>
 
@@ -59,36 +61,34 @@
             <h2>早稲田式スコアブック</h2>
             <p class="welcome-subtitle">少年野球のスコアを<br>かんたんに記録しよう</p>
           </div>
-          <form id="game-setup-form" class="form-card">
+          <form id="game-setup-form" class="form-card" novalidate>
             <h3>試合情報</h3>
             <div class="form-group">
               <label for="game-date">日付</label>
               <input type="date" id="game-date" />
             </div>
-            <div class="form-row">
+            <div class="form-row setup-teams">
               <div class="form-group">
-                <label for="team-first">先攻チーム</label>
-                <select id="team-first-preset" class="team-preset-select" style="margin-bottom: 4px;">
-                  <option value="">-- プリセットを選択 --</option>
+                <label for="team-first">先攻チーム（表の攻撃）</label>
+                <select id="team-first-preset" class="team-preset-select" aria-label="先攻チームを登録チームから選ぶ">
+                  <option value="">登録チームから選ぶ</option>
                 </select>
-                <input type="text" id="team-first" placeholder="チーム名" />
+                <input type="text" id="team-first" placeholder="チーム名（空欄でもOK）" autocomplete="off" />
               </div>
               <div class="vs-label">VS</div>
               <div class="form-group">
-                <label for="team-second">後攻チーム</label>
-                <select id="team-second-preset" class="team-preset-select" style="margin-bottom: 4px;">
-                  <option value="">-- プリセットを選択 --</option>
+                <label for="team-second">後攻チーム（裏の攻撃）</label>
+                <select id="team-second-preset" class="team-preset-select" aria-label="後攻チームを登録チームから選ぶ">
+                  <option value="">登録チームから選ぶ</option>
                 </select>
-                <input type="text" id="team-second" placeholder="チーム名" />
+                <input type="text" id="team-second" placeholder="チーム名（空欄でもOK）" autocomplete="off" />
               </div>
             </div>
-            <div class="form-row">
-              <div class="form-group">
-                <label for="game-field">球場</label>
-                <input type="text" id="game-field" placeholder="球場名" />
-              </div>
+            <div class="form-group">
+              <label for="game-field">球場</label>
+              <input type="text" id="game-field" placeholder="球場名（空欄でもOK）" autocomplete="off" />
             </div>
-            <div class="form-row">
+            <div class="form-row form-row-pair">
               <div class="form-group">
                 <label for="game-start-time">開始時刻</label>
                 <input type="time" id="game-start-time" />
@@ -99,40 +99,47 @@
               </div>
             </div>
             <div class="form-group">
+              <label for="game-innings">何回までの試合か（規定の回数）</label>
+              <select id="game-innings">
+                <option value="5">5回</option>
+                <option value="6">6回</option>
+                <option value="7" selected>7回</option>
+                <option value="9">9回</option>
+              </select>
+              <p class="form-hint">少年野球は6回・7回が多いです。大会の要項に合わせてください。同点のときの延長は、記録すれば自動で増えます。</p>
+            </div>
+            <div class="form-group">
               <label class="checkbox-label">
                 <input type="checkbox" id="game-dh" />
-                <span>DH制を使う</span>
+                <span>DH制を使う（投手の代わりに指名打者が打つ）</span>
               </label>
             </div>
             <div class="form-group">
               <label class="checkbox-label">
                 <input type="checkbox" id="game-tiebreaker" />
-                <span>タイブレーク制あり</span>
+                <span>タイブレークあり（延長で走者を置いて始める）</span>
               </label>
             </div>
             <div id="tiebreaker-options" class="form-subsection hidden">
-              <div class="form-row">
+              <div class="form-row form-row-pair">
                 <div class="form-group">
-                  <label for="tiebreaker-inning">開始イニング</label>
+                  <label for="tiebreaker-inning">何回から</label>
                   <select id="tiebreaker-inning">
-                    <option value="5">5回〜</option>
-                    <option value="6" selected>6回〜</option>
-                    <option value="7">7回〜</option>
-                    <option value="8">8回〜</option>
+                    <option value="8">8回から</option>
                   </select>
                 </div>
                 <div class="form-group">
-                  <label for="tiebreaker-runners">初期ランナー</label>
+                  <label for="tiebreaker-runners">置くランナー</label>
                   <select id="tiebreaker-runners">
-                    <option value="none">なし</option>
-                    <option value="1B2B" selected>1・2塁</option>
-                    <option value="2B">2塁のみ</option>
-                    <option value="1B">1塁のみ</option>
+                    <option value="1B2B" selected>一塁・二塁</option>
+                    <option value="2B">二塁だけ</option>
+                    <option value="1B">一塁だけ</option>
                   </select>
                 </div>
               </div>
+              <p class="form-hint">前の回の最後の打者が一塁、その前の打者が二塁に入ります（継続打順）。</p>
             </div>
-            <button type="submit" class="btn btn-primary btn-large">
+            <button type="submit" id="game-setup-submit" class="btn btn-primary btn-large">
               スタメン登録へ →
             </button>
           </form>
@@ -146,27 +153,29 @@
             <h2>👥 メンバー管理</h2>
           </div>
 
-          <div class="team-management-card form-card" style="margin-bottom: 24px;">
+          <div class="team-management-card form-card">
             <div class="form-group">
-              <label for="team-select">チーム選択</label>
-              <div style="display: flex; gap: 8px;">
-                <select id="team-select" style="flex: 1;">
+              <label for="team-select">チーム</label>
+              <div class="team-select-row">
+                <select id="team-select">
                   <!-- dynamically populated -->
                 </select>
-                <button id="add-team-btn" class="icon-btn-small" title="チーム追加">＋</button>
-                <button id="edit-team-btn" class="icon-btn-small" title="チーム名編集">✏️</button>
-                <button id="delete-team-btn" class="icon-btn-small" style="background: var(--color-red-light); color: var(--color-red);" title="チーム削除">🗑️</button>
+                <button type="button" id="add-team-btn" class="icon-btn-small" title="チームを追加" aria-label="チームを追加">＋</button>
+                <button type="button" id="edit-team-btn" class="icon-btn-small" title="チーム名を変更" aria-label="チーム名を変更">✏️</button>
+                <button type="button" id="delete-team-btn" class="icon-btn-small team-delete-btn" title="チームを削除" aria-label="チームを削除">🗑️</button>
               </div>
             </div>
+            <p class="form-hint">相手チームも登録しておくと、試合のときに名前を選ぶだけで入力できます。</p>
           </div>
 
           <div class="section-header">
-            <h3 id="current-team-name-display" style="font-size: 1.1rem; font-weight: 700;">メンバーリスト</h3>
-            <button id="add-member-btn" class="btn btn-primary btn-small">+ メンバー追加</button>
+            <h3 id="current-team-name-display" class="members-title">選手の一覧</h3>
+            <button type="button" id="add-member-btn" class="btn btn-primary btn-small">+ 選手を追加</button>
           </div>
           <div id="member-list" class="member-list">
             <!-- dynamically populated -->
           </div>
+          <button type="button" id="members-back-btn" class="btn btn-secondary page-back-btn">← 戻る</button>
 
           <!-- Add/Edit Member Modal -->
           <div id="member-modal" class="modal hidden">
@@ -175,12 +184,12 @@
               <form id="member-form">
                 <div class="form-group">
                   <label for="member-name">名前</label>
-                  <input type="text" id="member-name" placeholder="選手名" required />
+                  <input type="text" id="member-name" placeholder="選手名" autocomplete="off" required />
                 </div>
                 <div class="form-row">
                   <div class="form-group">
                     <label for="member-number">背番号</label>
-                    <input type="number" id="member-number" min="0" max="99" placeholder="0" />
+                    <input type="text" id="member-number" inputmode="numeric" maxlength="3" placeholder="例: 10" autocomplete="off" />
                   </div>
                   <div class="form-group">
                     <label for="member-bat">打ち方</label>
@@ -223,7 +232,7 @@
           <form id="team-form">
             <div class="form-group">
               <label for="team-name-input">チーム名</label>
-              <input type="text" id="team-name-input" placeholder="チーム名" required />
+              <input type="text" id="team-name-input" placeholder="チーム名" autocomplete="off" required />
             </div>
             <div class="modal-actions">
               <button type="button" id="cancel-team-btn" class="btn btn-secondary">キャンセル</button>
@@ -236,17 +245,18 @@
       <!-- Lineup Page -->
       <section id="page-lineup" class="page">
         <div class="page-container">
-          <h2>スタメン登録</h2>
-          <div class="tab-bar">
-            <button class="tab active" data-team="first" id="lineup-tab-first">先攻</button>
-            <button class="tab" data-team="second" id="lineup-tab-second">後攻</button>
+          <h2 id="lineup-title">スタメン登録</h2>
+          <p id="lineup-hint" class="page-hint"></p>
+          <div class="tab-bar lineup-tabs" id="lineup-tabs" role="tablist">
+            <button type="button" class="tab active" data-team="first" id="lineup-tab-first" role="tab">先攻</button>
+            <button type="button" class="tab" data-team="second" id="lineup-tab-second" role="tab">後攻</button>
           </div>
           <div id="lineup-form-container">
             <!-- dynamically populated -->
           </div>
           <div class="lineup-actions">
-            <button id="lineup-back-btn" class="btn btn-secondary">← 戻る</button>
-            <button id="lineup-start-btn" class="btn btn-primary btn-large">記録開始 ⚾</button>
+            <button type="button" id="lineup-back-btn" class="btn btn-secondary">← 試合情報</button>
+            <button type="button" id="lineup-start-btn" class="btn btn-primary btn-large">記録開始 ⚾</button>
           </div>
         </div>
       </section>
@@ -275,6 +285,29 @@
           <div id="scoresheet-container">
             <!-- scoresheet rendered here -->
           </div>
+        </div>
+      </section>
+
+      <!-- History Page (past games + backup) -->
+      <section id="page-history" class="page">
+        <div class="page-container">
+          <div class="section-header">
+            <h2>📚 過去の試合</h2>
+          </div>
+          <p class="page-hint">「🏟️ 新しい試合」を始めると、それまでの試合がここに保存されます（新しい順に最大30試合）。「開く」で続きを記録したり、画像を作り直したりできます。</p>
+          <div id="history-list" class="history-list">
+            <!-- dynamically populated -->
+          </div>
+          <div class="form-card backup-card">
+            <h3>💾 バックアップ</h3>
+            <p class="form-hint">チーム・選手・記録中の試合・過去の試合を、1つのファイルにまとめて保存します。機種変更のときや、ブラウザのデータが消えたときに「復元」で戻せます。</p>
+            <div class="backup-actions">
+              <button type="button" id="backup-export-btn" class="btn btn-primary">💾 バックアップを保存</button>
+              <button type="button" id="backup-import-btn" class="btn btn-secondary">📂 バックアップから復元</button>
+            </div>
+            <input type="file" id="backup-file-input" accept="application/json,.json" class="hidden" />
+          </div>
+          <button type="button" id="history-back-btn" class="btn btn-secondary page-back-btn">← 戻る</button>
         </div>
       </section>
 
@@ -334,40 +367,7 @@
           </button>
         </div>
         <div id="settings-modal-body">
-          <div class="form-group">
-            <label for="edit-game-date">日付</label>
-            <input type="date" id="edit-game-date" />
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="edit-team-first">先攻チーム</label>
-              <input type="text" id="edit-team-first" placeholder="チーム名" />
-            </div>
-            <div class="vs-label">VS</div>
-            <div class="form-group">
-              <label for="edit-team-second">後攻チーム</label>
-              <input type="text" id="edit-team-second" placeholder="チーム名" />
-            </div>
-          </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="edit-game-field">球場</label>
-              <input type="text" id="edit-game-field" placeholder="球場名" />
-            </div>
-            </div>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="edit-start-time">開始時刻</label>
-              <input type="time" id="edit-start-time" />
-            </div>
-            <div class="form-group">
-              <label for="edit-end-time">終了時刻</label>
-              <input type="time" id="edit-end-time" />
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:16px;">
-            <button id="settings-save-btn" class="btn btn-primary" style="flex:1;">保存</button>
-          </div>
+          <!-- filled by scoresheet.js -->
         </div>
       </div>
     </div>

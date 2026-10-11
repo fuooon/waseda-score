@@ -229,9 +229,11 @@ body {
    Main Content
    ============================================ */
 
+/* padding (not margin): a top margin would collapse through #app and body and
+   make every page 1 header-height taller than the screen (double scrolling) */
 #main-content {
-  margin-top: var(--header-height);
-  min-height: calc(100vh - var(--header-height));
+  padding-top: var(--header-height);
+  min-height: 100vh;
 }
 
 .page {
@@ -759,278 +761,21 @@ body {
 
 /* ============================================
    Scoresheet
+   Page layout, navigation, status bar, checks and the sheet tables:
+   src/styles/sheet.css (scoresheet.js). Cell drawing: src/styles/cell.css.
    ============================================ */
-
-.scoresheet-header {
-  background: var(--color-paper);
-  border-bottom: 1px solid var(--color-border-light);
-  padding: var(--sp-sm) var(--sp-md);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--sp-md);
-  flex-wrap: wrap;
-}
-
-.inning-indicator {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-sm);
-}
-
-#current-inning-label {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--color-green-dark);
-  min-width: 80px;
-  text-align: center;
-}
-
-.score-summary {
-  display: flex;
-  gap: 2px;
-  font-size: 0.8rem;
-}
-
-.score-summary-team {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.score-summary-name {
-  padding: 4px 8px;
-  background: var(--color-green);
-  color: white;
-  font-weight: 600;
-  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
-  white-space: nowrap;
-  max-width: 80px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.score-summary-runs {
-  display: flex;
-  gap: 1px;
-}
-
-.score-summary-cell {
-  width: 22px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-cream);
-  font-weight: 500;
-  font-family: var(--font-mono);
-}
-
-.score-summary-cell.total {
-  background: var(--color-accent-light);
-  font-weight: 700;
-  color: var(--color-accent);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-}
-
-.scoresheet-wrapper {
-  overflow: auto;
-  -webkit-overflow-scrolling: touch;
-  max-height: calc(100vh - var(--header-height) - 60px);
-  padding: var(--sp-sm);
-  width: 100%;
-  max-width: 100vw;
-}
-
-#scoresheet-container {
-  min-width: fit-content;
-}
-
-.scoresheet-table {
-  border-collapse: collapse;
-  font-size: 0.8rem;
-  background: var(--color-paper);
-  box-shadow: 0 2px 12px var(--color-shadow);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  table-layout: fixed;
-  width: auto;
-}
-
-.scoresheet-table th,
-.scoresheet-table td {
-  border: 1px solid #ccc; /* Match SVG inner lines */
-  text-align: center;
-  vertical-align: middle;
-  padding: 0;
-  position: relative;
-  background-clip: padding-box; /* Prevent background from covering collapsed borders */
-}
-
-.scoresheet-table th {
-  background: var(--color-green);
-  color: white;
-  font-weight: 600;
-  padding: 6px 4px;
-  white-space: nowrap;
-  width: var(--cell-width);
-}
-
-.scoresheet-table .player-header {
-  position: sticky;
-  left: 0;
-  z-index: 10;
-  background: var(--color-green-dark);
-  min-width: var(--player-col-width);
-  width: var(--player-col-width);
-  text-align: left;
-  padding-left: var(--sp-sm);
-}
-
-.scoresheet-table .player-cell {
-  position: sticky;
-  left: 0;
-  z-index: 5;
-  background: var(--color-cream);
-  min-width: var(--player-col-width);
-  width: var(--player-col-width);
-  text-align: left;
-  padding: 4px var(--sp-sm);
-  font-weight: 500;
-  white-space: nowrap;
-  border-right: 2px solid var(--color-border);
-  box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-}
-
-.scoresheet-table .player-cell .player-name {
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-
-.scoresheet-table .player-cell .player-detail {
-  font-size: 0.7rem;
-  color: var(--color-ink-lighter);
-}
-
-/* Player name row with substitution button */
-.player-name-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-}
-
-.sub-btn {
-  background: none;
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 0.7rem;
-  padding: 2px 4px;
-  opacity: 0.4;
-  transition: all var(--transition-fast);
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.sub-btn:hover {
-  opacity: 1;
-  border-color: var(--color-green);
-  background: var(--color-green-light);
-}
-
-/* Substitution history in player cell */
-.player-subs {
-  border-top: 2px wavy var(--color-accent);
-  margin-top: 3px;
-  padding-top: 2px;
-}
-
-.player-sub-entry {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.65rem;
-  color: var(--color-ink-lighter);
-}
-
-.sub-type-badge {
-  font-size: 0.6rem;
-  font-weight: 700;
-  color: white;
-  background: var(--color-accent);
-  border-radius: 2px;
-  padding: 0 3px;
-  line-height: 1.4;
-}
-
-.sub-old-name {
-  text-decoration: line-through;
-  opacity: 0.7;
-}
-
-/* Substitution type selector in modal */
-.sub-type-selector {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 6px;
-}
-
-.sub-type-btn {
-  padding: 10px 4px;
-  border: 2px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-paper);
-  font-family: var(--font-main);
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  text-align: center;
-}
-
-.sub-type-btn.selected {
-  border-color: var(--color-green);
-  background: var(--color-green-light);
-  color: var(--color-green-dark);
-}
-
-.sub-type-btn:hover {
-  border-color: var(--color-green);
-}
 
 .score-cell {
   width: var(--cell-width);
   min-width: var(--cell-width);
+  max-width: var(--cell-width);
   height: var(--cell-height);
   padding: 0;
-  cursor: pointer;
   position: relative;
-  transition: background var(--transition-fast);
-  background-color: var(--color-paper);
   vertical-align: top;
-}
-
-.score-cell:hover {
-  background: var(--color-green-light);
-}
-
-.score-cell.active-cell {
-  background: var(--color-green-light);
-}
-
-.score-cell.has-result {
-  background: var(--color-cream);
-}
-
-/* Cell content drawing (diamond, result, out number, runner tags):
-   see src/styles/cell.css (imported by src/cell-render.js) */
-
-.inning-total-cell {
-  background: var(--color-accent-light) !important;
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--color-accent);
+  background-color: var(--color-paper);
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
 }
 
 /* Runner Events Input Section */
@@ -1142,11 +887,7 @@ body {
   border: 1px dashed var(--color-border);
 }
 
-.total-row td {
-  background: var(--color-green-light) !important;
-  font-weight: 700;
-  border-top: 2px solid var(--color-green);
-}
+
 
 /* ============================================
    Score Input Panel
@@ -1540,33 +1281,6 @@ body {
     width: 50px;
   }
 
-  .scoresheet-wrapper {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: var(--sp-md);
-  }
-
-  .scoresheet-table {
-    min-width: 800px; /* Force scroll */
-  }
-
-  .inning-indicator {
-    gap: 4px;
-  }
-
-  #current-inning-label {
-    font-size: 1rem;
-    min-width: 60px;
-  }
-
-  .score-summary {
-    display: none; /* Hide summary on small mobile to save space */
-  }
-
-  .scoresheet-header {
-    padding: var(--sp-xs) var(--sp-sm);
-  }
-  
   .modal-content {
     padding: var(--sp-md);
   }
@@ -1588,8 +1302,4 @@ input {
   min-height: 36px;
 }
 
-.scoresheet-table td, 
-.scoresheet-table th {
-  padding: 4px;
-}
 
