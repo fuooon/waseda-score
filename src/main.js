@@ -9,6 +9,7 @@ import { initGameSetup } from './game-setup.js';
 import { initLineup } from './lineup.js';
 import { initScoresheet, updateScoresheet } from './scoresheet.js';
 import { initExport } from './export.js';
+import { renderHelp } from './help.js';
 
 let currentGame = null;
 
@@ -76,6 +77,7 @@ function init() {
 
   // Init team members (always available)
   initTeamMembers();
+  renderHelp(document.getElementById('help-content')); // help page content (FLOW will move this to page show)
 
   // Init game setup
   initGameSetup((game) => {

@@ -1,0 +1,344 @@
+/* ============================================
+   Score cell drawing (cell-render.js)
+   ============================================
+   Sizes use container query units (cqh / cqw) of .cell-content so the same
+   drawing scales with the sheet cell (100x80 / 80x64 / 70x56) and with the
+   samples of the symbol guide. Each size has a px fallback first. */
+
+.cell-content {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  overflow: hidden;
+  container-type: size;
+  background-color: inherit;
+  color: #2C2416;
+  font-family: var(--font-mono, 'M PLUS 1', sans-serif);
+}
+
+/* Quadrant lines (三塁 | 二塁 / 本塁 | 一塁) */
+.bg-line {
+  position: absolute;
+  background-color: #d2cabb;
+  z-index: 1;
+}
+.line-h-cross { left: 0; right: 0; top: 50%; height: 1px; }
+.line-v-cross { left: 50%; top: 0; bottom: 0; width: 1px; }
+.line-v-main { display: none; } /* old ball-count column: not used */
+
+/* ============================================
+   Diamond (base path)
+   ============================================ */
+
+.diamond-graphic {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  width: 36cqh;
+  height: 36cqh;
+  background-color: inherit;
+  border: 1px solid #c4bba9;
+  transform: translate(-50%, -50%) rotate(45deg);
+  z-index: 2;
+  --path-w: 2.5px;
+  --path-w: max(2px, 3.4cqh);
+}
+
+/* Base path the player covered (red) */
+.diamond-graphic.b1 { border-right: var(--path-w) solid var(--color-red, #C62828); }
+.diamond-graphic.b2 { border-top: var(--path-w) solid var(--color-red, #C62828); }
+.diamond-graphic.b3 { border-left: var(--path-w) solid var(--color-red, #C62828); }
+.diamond-graphic.b4 { border-bottom: var(--path-w) solid var(--color-red, #C62828); }
+
+/* Tiebreak placed runner: the path he did not run is dashed grey */
+.diamond-graphic.p1 { border-right-style: dashed; border-right-color: #8B7D6B; }
+.diamond-graphic.p2 { border-top-style: dashed; border-top-color: #8B7D6B; }
+
+/* Run scored: filled circle in the centre */
+.diamond-graphic.hr::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  width: 15cqh;
+  height: 15cqh;
+  background: var(--color-red, #C62828);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Out number Ⅰ Ⅱ Ⅲ */
+.out-number-text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Times New Roman', serif;
+  font-size: 12px;
+  font-size: 22cqh;
+  font-weight: 700;
+  line-height: 1;
+  color: #2C2416;
+  z-index: 3;
+}
+
+/* ============================================
+   Batting result (一塁 area, bottom-right)
+   ============================================ */
+
+.cell-result {
+  position: absolute;
+  right: 3cqw;
+  bottom: 4cqh;
+  max-width: 48cqw;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 13px;
+  font-size: 25cqh;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  color: #2C2416;
+  z-index: 4;
+}
+.cell-result.fs-m { font-size: 11px; font-size: 21cqh; }
+.cell-result.fs-s { font-size: 10px; font-size: 18cqh; }
+.cell-result.fs-xs { font-size: 8px; font-size: 15cqh; }
+.cell-result.is-hit { color: var(--color-red, #C62828); }
+
+.cr-line {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  line-height: 1;
+}
+.cr-line + .cr-line { margin-top: 0.12em; }
+.cr-sym { font-size: 0.85em; }
+.cr-sym-inline { margin-right: 0.08em; }
+.cr-note { font-size: 0.55em; font-family: var(--font-main, sans-serif); margin-top: 0.15em; }
+.cr-events { gap: 1px; margin-bottom: 0.1em; }
+
+/* room for the trajectory marks */
+.cr-pos.has-traj-fly,
+.cr-pos.has-traj-liner { padding-top: 0.3em; }
+.cr-pos.has-traj-ground { padding-bottom: 0.3em; }
+
+/* Hit marks: ━ (single) ═ (double) ≡ (triple), drawn with borders,
+   written in front of the fielder number (direction of the hit) */
+.hit-mark {
+  display: inline-block;
+  width: 0.85em;
+  border-top: 0.14em solid currentColor;
+  position: relative;
+  box-sizing: content-box;
+  margin-right: 0.12em;
+}
+.hit-mark:last-child { margin-right: 0; width: 1.1em; }
+.hit-mark.hit-1 { height: 0; }
+.hit-mark.hit-2 { height: 0.2em; border-bottom: 0.14em solid currentColor; }
+.hit-mark.hit-3 { height: 0.48em; border-bottom: 0.14em solid currentColor; }
+.hit-mark.hit-3::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0.17em;
+  border-top: 0.14em solid currentColor;
+}
+
+/* Strikeouts: K, and K mirrored for 見逃し三振 (fonts have no reversed K) */
+.sym-k {
+  display: inline-block;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+}
+.sym-k.sym-mirror { transform: scaleX(-1); }
+
+/* Trajectory marks on the first fielder number */
+.traj-mark {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+}
+/* ゴロ: arc under the number */
+.traj-mark.traj-ground::after {
+  content: "";
+  position: absolute;
+  left: -0.05em;
+  right: -0.05em;
+  bottom: -0.3em;
+  height: 0.28em;
+  border-bottom: 0.1em solid currentColor;
+  border-radius: 0 0 50% 50% / 0 0 100% 100%;
+}
+/* フライ: arc over the number */
+.traj-mark.traj-fly::before {
+  content: "";
+  position: absolute;
+  left: -0.1em;
+  right: -0.1em;
+  top: -0.32em;
+  height: 0.3em;
+  border-top: 0.1em solid currentColor;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+}
+/* ライナー: straight line over the number */
+.traj-mark.traj-liner::before {
+  content: "";
+  position: absolute;
+  left: -0.1em;
+  right: -0.1em;
+  top: -0.22em;
+  border-top: 0.1em solid currentColor;
+}
+
+/* 犠打: fielder numbers in a box */
+.sac-bunt-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.09em solid var(--color-blue, #1565C0);
+  border-radius: 2px;
+  padding: 0.12em 0.18em;
+  line-height: 1;
+}
+.sac-bunt-wrap.empty { width: 0.9em; height: 0.9em; padding: 0; }
+
+/* 犠飛: fielder numbers in a diamond ◇ */
+.sac-fly-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3em 0.42em;
+  line-height: 1;
+}
+.sac-fly-wrap.empty { width: 1em; height: 1em; padding: 0; }
+.sac-fly-wrap svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.sac-fly-wrap polygon {
+  fill: none;
+  stroke: var(--color-blue, #1565C0);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+.sac-fly-text { position: relative; }
+
+/* Tiebreak placed runner */
+.tb-tag {
+  display: inline-block;
+  font-size: 0.72em;
+  padding: 0.1em 0.25em;
+  border-radius: 3px;
+  background: #6A1B9A;
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  letter-spacing: 0.02em;
+}
+
+/* ============================================
+   Runner event tags (in the area of the base)
+   ============================================ */
+
+.cell-events {
+  position: absolute;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  max-width: 47cqw;
+  z-index: 4;
+}
+.cell-events.ev-q2 { top: 3cqh; right: 3cqw; justify-content: flex-end; }  /* 二塁 */
+.cell-events.ev-q3 { top: 3cqh; left: 3cqw; }                              /* 三塁 */
+.cell-events.ev-q4 { bottom: 3cqh; left: 3cqw; }                           /* 本塁 */
+
+.cell-event-tag {
+  display: inline-block;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8px;
+  font-size: max(8px, 14cqh);
+  font-weight: 700;
+  line-height: 1.05;
+  padding: 0 0.18em;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  background: #fffef9;
+  white-space: nowrap;
+}
+.cell-event-tag.ev-out { background: #FFEBEE; }
+.cr-events .cell-event-tag { font-size: 0.6em; }
+
+/* ============================================
+   Inning end '//' (the sheet adds .inning-end to the td of the 3rd out)
+   Drawn across the bottom-right corner so it never covers the result.
+   ============================================ */
+
+.score-cell.inning-end::after,
+.legend-cell.inning-end::after {
+  content: "";
+  position: absolute;
+  right: 5px;
+  bottom: -8px;
+  width: 4px;
+  height: 11px;
+  border-left: 2px solid #2C2416;
+  border-right: 2px solid #2C2416;
+  transform: skewX(-28deg);
+  z-index: 4; /* below the sticky player column (z-index 5) */
+  pointer-events: none;
+}
+
+/* ============================================
+   Sample cells for the symbol guide
+   ============================================ */
+
+.legend-cell {
+  position: relative;
+  flex: none;
+  width: 84px;
+  height: 66px;
+  background: var(--color-cream, #FDF6E3);
+  border: 1px solid var(--color-border, #D4C9B4);
+}
+.legend-cell.legend-cell-lg { width: 150px; height: 118px; }
+.legend-cell.inning-end { margin-bottom: 6px; }
+
+/* ============================================
+   Legacy markup of the old scoresheet.js renderCellContent
+   (kept readable until the sheet uses renderCellHTML)
+   ============================================ */
+
+.cell-content:not(.wcell) > .cell-positions,
+.cell-content:not(.wcell) > .cell-symbol {
+  position: absolute;
+  right: 3cqw;
+  bottom: 4cqh;
+  font-size: 12px;
+  font-size: 20cqh;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  z-index: 4;
+}
+.cell-content:not(.wcell) > .cell-inning-end {
+  position: absolute;
+  top: 1px;
+  right: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  z-index: 4;
+}
+.cell-content:not(.wcell) > .cell-events {
+  left: 2px;
+  bottom: 1px;
+}

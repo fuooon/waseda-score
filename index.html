@@ -281,60 +281,9 @@
       <!-- Help Page -->
       <section id="page-help" class="page">
         <div class="page-container">
-          <h2>📖 早稲田式スコア 記号ガイド</h2>
-          <div class="help-cards">
-            <div class="help-card">
-              <h3>守備番号</h3>
-              <div class="help-grid">
-                <div class="help-item"><span class="symbol">1</span><span>投手</span></div>
-                <div class="help-item"><span class="symbol">2</span><span>捕手</span></div>
-                <div class="help-item"><span class="symbol">3</span><span>一塁手</span></div>
-                <div class="help-item"><span class="symbol">4</span><span>二塁手</span></div>
-                <div class="help-item"><span class="symbol">5</span><span>三塁手</span></div>
-                <div class="help-item"><span class="symbol">6</span><span>遊撃手</span></div>
-                <div class="help-item"><span class="symbol">7</span><span>左翼手</span></div>
-                <div class="help-item"><span class="symbol">8</span><span>中堅手</span></div>
-                <div class="help-item"><span class="symbol">9</span><span>右翼手</span></div>
-              </div>
-            </div>
-            <div class="help-card">
-              <h3>塁の表記</h3>
-              <div class="help-grid">
-                <div class="help-item"><span class="symbol">A</span><span>一塁</span></div>
-                <div class="help-item"><span class="symbol">B</span><span>二塁</span></div>
-                <div class="help-item"><span class="symbol">C</span><span>三塁</span></div>
-                <div class="help-item"><span class="symbol">D</span><span>本塁</span></div>
-              </div>
-            </div>
-            <div class="help-card">
-              <h3>打撃結果</h3>
-              <div class="help-grid cols-2">
-                <div class="help-item"><span class="symbol">━</span><span>単打（シングルヒット）</span></div>
-                <div class="help-item"><span class="symbol">═</span><span>二塁打</span></div>
-                <div class="help-item"><span class="symbol">≡</span><span>三塁打</span></div>
-                <div class="help-item"><span class="symbol">HR</span><span>本塁打</span></div>
-                <div class="help-item"><span class="symbol">K</span><span>三振（空振り）</span></div>
-                <div class="help-item"><span class="symbol">Ɔ</span><span>三振（見逃し）</span></div>
-                <div class="help-item"><span class="symbol">B</span><span>四球</span></div>
-                <div class="help-item"><span class="symbol">DB</span><span>死球</span></div>
-                <div class="help-item"><span class="symbol">□</span><span>犠打（バント）</span></div>
-                <div class="help-item"><span class="symbol">◇</span><span>犠飛</span></div>
-                <div class="help-item"><span class="symbol">E</span><span>エラー</span></div>
-                <div class="help-item"><span class="symbol">FC</span><span>フィルダースチョイス</span></div>
-              </div>
-            </div>
-            <div class="help-card">
-              <h3>アウトの書き方</h3>
-              <div class="help-content">
-                <p>ゴロアウトは「送球した選手 - 捕球した選手」の守備番号を書きます。</p>
-                <p>例: <strong>6-3</strong> = 遊撃手 → 一塁手（ショートゴロ）</p>
-                <p>例: <strong>4-6-3</strong> = 二塁手 → 遊撃手 → 一塁手（ダブルプレー）</p>
-                <p>フライアウトは捕球した選手の守備番号を書きます。</p>
-                <p>例: <strong>7</strong> = 左翼手（レフトフライ）</p>
-              </div>
-            </div>
-          </div>
-          <button class="btn btn-secondary" onclick="document.querySelector('[data-page=game-setup]').click()">← 戻る</button>
+          <h2>📖 スコアのつけ方・記号ガイド</h2>
+          <div id="help-content"></div>
+          <button id="help-back-btn" class="btn btn-secondary">← 戻る</button>
         </div>
       </section>
     </main>
