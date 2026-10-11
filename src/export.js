@@ -24,9 +24,13 @@ import './styles/export.css';
 
 const TEAM_KEYS = ['first', 'second'];
 const SIDE_LABELS = { first: '先攻', second: '後攻' };
+// Shown for an empty team name (same words as the score sheet).
+const UNNAMED_TEAMS = { first: '先攻チーム', second: '後攻チーム' };
 const END_REASON_LABELS = { regulation: '', walkoff: 'サヨナラ', called: 'コールドゲーム', time: '時間切れ' };
 const TIEBREAK_LABELS = { '1B2B': '一・二塁', '1B': '一塁', '2B': '二塁' };
 const WEEKDAYS = '日月火水木金土';
+// Same labels as the sheet's checks panel.
+const CHECK_LEVELS = { error: 'エラー', warning: '注意', info: '確認' };
 
 const BACKGROUND = '#FFFEF9';
 const PREFERRED_SCALE = 2;
@@ -41,6 +45,10 @@ const RENDER_WINDOW_WIDTH = 1280;
 const SIZE_SAFETY = 1.15;
 
 const BUSY_LABEL = '⏳ 書き出し中…';
+// A tap this soon after opening / closing, on the same spot, is the second
+// tap of a double tap.
+const GHOST_TAP_MS = 450;
+const GHOST_TAP_PX = 24;
 const OPTION_BUTTONS = { full: 'export-full-btn', board: 'export-board-btn' };
 
 // Classes of the live sheet that only make sense on screen.
@@ -63,7 +71,7 @@ const MSG = {
 export function teamName(game, teamKey) {
   const raw = teamKey === 'second' ? game?.teamSecond : game?.teamFirst;
   const name = typeof raw === 'string' ? raw.trim() : '';
-  return name || SIDE_LABELS[teamKey === 'second' ? 'second' : 'first'];
+  return name || UNNAMED_TEAMS[teamKey === 'second' ? 'second' : 'first'];
 }
 
 function trimmed(value) {
@@ -73,7 +81,7 @@ function trimmed(value) {
 // Characters that are not allowed in file names on Windows / macOS / Android,
 // control and invisible direction characters, and any whitespace.
 // eslint-disable-next-line no-control-regex
-const FILENAME_UNSAFE = /[\\/:*?"<>|\u0000-\u001f\u007f​-‏‪-‮⁠-⁩﻿\s]+/g;
+const FILENAME_UNSAFE = /[\\/:*?"<>|\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff\s]+/g;
 
 // One part of a file name: unsafe characters → '_', no leading/trailing dots
 // or underscores, at most `maxLength` characters; '' → fallback.
@@ -264,6 +272,33 @@ export function buildBoardNoteHTML(sb) {
   return `<p class="export-board-note">${notes.map(escapeHtml).join('　')}</p>`;
 }
 
+// The 記録チェック result in one sentence, counted like the sheet's badge
+// ("⚠ 3件（エラー1・注意1・確認1）") so both show the same number.
+export function checksSummary(issues) {
+  const list = Array.isArray(issues) ? issues : [];
+  if (!list.length) return { ok: true, text: '✓ 記録チェックOK：おかしな点はありません。' };
+  const counts = { error: 0, warning: 0, info: 0 };
+  for (const issue of list) {
+    const sev = Object.prototype.hasOwnProperty.call(counts, issue?.severity) ? issue.severity : 'info';
+    counts[sev]++;
+  }
+  const breakdown = Object.entries(CHECK_LEVELS)
+    .filter(([sev]) => counts[sev])
+    .map(([sev, label]) => `${label}${counts[sev]}`)
+    .join('・');
+  if (!counts.error && !counts.warning) {
+    return {
+      ok: true,
+      text: `✓ 記録チェック：確認${counts.info}件（まちがいではありません。気になるときはスコアシートの「記録チェック」を見てください）`,
+    };
+  }
+  return {
+    ok: false,
+    text: `⚠ 記録チェックで気になる点が${list.length}件あります（${breakdown}）。` +
+      '画像にする前に、スコアシートの「記録チェック」で確かめておくと安心です。',
+  };
+}
+
 // Device-pixel scale for html2canvas that keeps the canvas within browser limits.
 export function canvasScale(width, height, preferred = PREFERRED_SCALE) {
   if (!(width > 0 && height > 0)) return preferred;
@@ -281,11 +316,43 @@ let currentGame = null;
 let bound = false;
 let busy = false;
 let jobToken = 0; // bumped on close: a job that finishes after that is dropped
-let prepared = null; // { kind, filename, blob, file, objectUrl, canShare }
+let running = null; // { token, game } of the image being made
+let prepared = null; // { kind, filename, blob, file, objectUrl, canShare, title, downloadedAt }
+// Phone back button: the open modal owns one browser-history entry, so "back"
+// closes the modal instead of leaving the app (as the score input panel does).
+let historyEntry = false; // our entry is the current one
+let pendingBacks = 0; // our own history.back() calls whose popstate is still to come
+let shareInFlight = false;
+let openedAt = 0;
+let downOnBackdrop = false;
+const ghost = { x: 0, y: 0, until: 0 }; // where the tap that closed the modal was
 const buttonLabels = new Map();
 
 function el(id) {
   return document.getElementById(id);
+}
+
+function now() {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function armGhostGuard(e) {
+  if (!e || !e.detail || !Number.isFinite(e.clientX) || !Number.isFinite(e.clientY)) return; // keyboard
+  ghost.x = e.clientX;
+  ghost.y = e.clientY;
+  ghost.until = now() + GHOST_TAP_MS;
+}
+
+function dropGhostClick(e) {
+  if (!ghost.until) return;
+  if (now() > ghost.until) {
+    ghost.until = 0;
+    return;
+  }
+  if (Math.abs(e.clientX - ghost.x) > GHOST_TAP_PX || Math.abs(e.clientY - ghost.y) > GHOST_TAP_PX) return;
+  ghost.until = 0;
+  e.preventDefault();
+  e.stopImmediatePropagation();
 }
 
 // ============================================
@@ -298,18 +365,41 @@ export function initExport(game) {
   bound = true;
 
   el('export-btn')?.addEventListener('click', openExportModal);
-  el('close-export-btn')?.addEventListener('click', closeExportModal);
+  el('close-export-btn')?.addEventListener('click', e => {
+    armGhostGuard(e);
+    closeExportModal();
+  });
   el('export-full-btn')?.addEventListener('click', () => runExport('full'));
   el('export-board-btn')?.addEventListener('click', () => runExport('board'));
   el('export-download-btn')?.addEventListener('click', handleDownload);
   el('export-share-btn')?.addEventListener('click', handleShare);
 
+  // Backdrop tap closes, but not the second tap of a double tap on the 📷
+  // button (it lands on the backdrop just after opening) and not a drag that
+  // started inside the dialog.
   const modal = el('export-modal');
-  modal?.addEventListener('click', e => {
-    if (e.target === modal) closeExportModal(); // backdrop tap
+  modal?.addEventListener('pointerdown', e => {
+    downOnBackdrop = e.target === modal;
   });
+  modal?.addEventListener('click', e => {
+    if (e.target !== modal || !downOnBackdrop || now() - openedAt < GHOST_TAP_MS) return;
+    armGhostGuard(e);
+    closeExportModal();
+  });
+  // ...and the second tap of a double tap on 閉じる must not hit the sheet
+  // (🔄 or a cell) that is under it once the modal is gone.
+  document.addEventListener('click', dropGhostClick, true);
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && isModalOpen()) closeExportModal();
+  });
+  window.addEventListener('popstate', () => {
+    if (pendingBacks > 0) {
+      pendingBacks--;
+      return;
+    }
+    if (!historyEntry) return;
+    historyEntry = false;
+    if (isModalOpen()) closeExportModal({ fromHistory: true });
   });
 }
 
@@ -323,16 +413,45 @@ function isModalOpen() {
 }
 
 function openExportModal() {
-  if (!currentGame) return;
+  if (!currentGame || isModalOpen()) return;
   resetPreview();
   updateChecksNote();
+  // Reopened while the image asked for before is still being made (the button
+  // still says "書き出し中…"): show that image when it is ready.
+  if (running && running.game === currentGame) running.token = jobToken;
   el('export-modal')?.classList.remove('hidden');
+  openedAt = now();
+  downOnBackdrop = false;
+  pushHistoryEntry();
 }
 
-function closeExportModal() {
+function closeExportModal({ fromHistory = false } = {}) {
   jobToken++;
   el('export-modal')?.classList.add('hidden');
   resetPreview();
+  if (!fromHistory) dropHistoryEntry();
+}
+
+function pushHistoryEntry() {
+  if (historyEntry) return;
+  try {
+    // after a reload with the modal open, the current entry is still ours: reuse it
+    if (pendingBacks > 0 || !history.state?.exportModal) history.pushState({ exportModal: true }, '');
+    historyEntry = true;
+  } catch {
+    // history not available
+  }
+}
+
+function dropHistoryEntry() {
+  if (!historyEntry) return;
+  historyEntry = false;
+  try {
+    pendingBacks++;
+    history.back();
+  } catch {
+    pendingBacks = Math.max(0, pendingBacks - 1);
+  }
 }
 
 function resetPreview() {
@@ -341,6 +460,7 @@ function resetPreview() {
   if (img) img.removeAttribute('src');
   const share = el('export-share-btn');
   if (share) share.style.display = 'none';
+  shareInFlight = false;
   releasePrepared();
 }
 
@@ -366,16 +486,15 @@ function updateChecksNote() {
     if (title) title.insertAdjacentElement('afterend', note);
     else content.prepend(note);
   }
-  let count = 0;
+  let issues = [];
   try {
-    count = validateGame(currentGame).filter(i => i.severity === 'error' || i.severity === 'warning').length;
+    issues = validateGame(currentGame);
   } catch {
-    count = 0;
+    issues = [];
   }
-  note.className = `export-checks-note ${count ? 'has-issues' : 'is-ok'}`;
-  note.textContent = count
-    ? `⚠ 記録チェックで気になる点が${count}件あります。画像にする前に、スコアシートの「記録チェック」で確かめておくと安心です。`
-    : '✓ 記録チェックOK：おかしな点はありません。';
+  const summary = checksSummary(issues);
+  note.className = `export-checks-note ${summary.ok ? 'is-ok' : 'has-issues'}`;
+  note.textContent = summary.text;
 }
 
 function setBusy(kind) {
@@ -505,8 +624,9 @@ function fileShareable(file) {
 
 async function runExport(kind) {
   if (busy || !currentGame) return;
-  const game = currentGame;
-  const token = jobToken;
+  const job = { token: jobToken, game: currentGame };
+  const { game } = job;
+  running = job;
   setBusy(kind);
   try {
     await nextFrame(); // paint "書き出し中…" before html2canvas takes the main thread
@@ -514,12 +634,13 @@ async function runExport(kind) {
     const canvas = await renderNode(node);
     const blob = await canvasToBlob(canvas);
     const dataUrl = await blobToDataURL(blob);
-    if (token !== jobToken || !isModalOpen()) return; // closed meanwhile
+    if (job.token !== jobToken || !isModalOpen()) return; // closed meanwhile
     showPreview({ kind, blob, dataUrl, filename: exportFilename(game, kind), game });
   } catch (err) {
     console.error('Export error:', err);
-    if (token === jobToken) showToast(err instanceof ExportError ? err.message : MSG.failed, 'error', 5000);
+    if (job.token === jobToken) showToast(err instanceof ExportError ? err.message : MSG.failed, 'error', 5000);
   } finally {
+    if (running === job) running = null;
     setBusy(null);
   }
 }
@@ -534,6 +655,7 @@ function showPreview({ kind, blob, dataUrl, filename, game }) {
     file,
     objectUrl: URL.createObjectURL(blob),
     canShare: fileShareable(file),
+    downloadedAt: -Infinity,
     title: `${teamName(game, 'first')} vs ${teamName(game, 'second')}`,
   };
 
@@ -556,12 +678,21 @@ function showPreview({ kind, blob, dataUrl, filename, game }) {
   }
   hint.textContent = prepared.canShare ? MSG.hintShare : MSG.hintNoShare;
   preview.classList.remove('hidden');
-  // bring the image and the ダウンロード / 共有 buttons into view inside the modal
-  const target = hint || preview;
-  try {
-    target.scrollIntoView({ block: 'end', behavior: 'smooth' });
-  } catch {
-    target.scrollIntoView(false); // old browsers without scrollIntoView options
+  // Bring the image, ダウンロード / 共有 and 閉じる into view inside the modal,
+  // once the image has its height.
+  const target = el('close-export-btn') || hint;
+  const reveal = () => {
+    if (!isModalOpen() || preview.classList.contains('hidden')) return;
+    try {
+      target.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    } catch {
+      target.scrollIntoView(false); // old browsers without scrollIntoView options
+    }
+  };
+  if (img && !img.complete) {
+    img.addEventListener('load', reveal, { once: true });
+  } else {
+    reveal();
   }
 }
 
@@ -571,6 +702,9 @@ function showPreview({ kind, blob, dataUrl, filename, game }) {
 
 function handleDownload() {
   if (!prepared) return;
+  // double tap: one file is enough
+  if (now() - prepared.downloadedAt < 1000) return;
+  prepared.downloadedAt = now();
   const link = document.createElement('a');
   link.href = prepared.objectUrl;
   link.download = prepared.filename;
@@ -589,6 +723,7 @@ function shareFailed(err) {
 
 // Synchronous up to navigator.share(): the blob/File were prepared beforehand.
 function handleShare() {
+  if (shareInFlight) return; // the share sheet is already open (double tap)
   const p = prepared;
   if (!p || !p.file || !p.canShare) {
     showToast(MSG.shareFailed, 'error', 5000);
@@ -601,5 +736,8 @@ function handleShare() {
     shareFailed(err);
     return;
   }
-  Promise.resolve(pending).catch(shareFailed);
+  shareInFlight = true;
+  Promise.resolve(pending).catch(shareFailed).finally(() => {
+    shareInFlight = false;
+  });
 }

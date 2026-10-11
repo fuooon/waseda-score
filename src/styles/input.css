@@ -35,6 +35,8 @@
   padding: 0;
   overflow: hidden;
   border-radius: 16px 16px 0 0;
+  /* very long names (no spaces) wrap instead of widening the panel */
+  overflow-wrap: anywhere;
 }
 
 /* no double-tap zoom on quick repeated taps (keypad, steppers) */
@@ -55,6 +57,8 @@
 }
 
 #score-input-modal .modal-header h3 {
+  flex: 1;
+  min-width: 0;
   font-size: 1.05rem;
   line-height: 1.35;
 }
@@ -731,6 +735,11 @@
 
 .si-ev-btn.is-out {
   background: var(--si-red-light);
+}
+
+.si-ev-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .si-ev-sym {

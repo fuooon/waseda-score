@@ -892,6 +892,12 @@
 .tb-badge.state-scored { background: #C62828; }
 .tb-badge.state-out { background: #5A4E3C; }
 
+/* The placed runner's slot is up to bat: badge on top, "次" below it */
+.has-tb-badge .next-tag {
+  top: auto;
+  bottom: 3px;
+}
+
 .cell-flash {
   animation: cellFlash 0.6s ease-in-out 3;
 }
@@ -1191,6 +1197,14 @@
 
   #page-scoresheet .scoresheet-wrapper {
     overflow-y: visible;
+  }
+
+  /* ◀ ▶ and the checks badge stay reachable below the app header */
+  #page-scoresheet .inning-indicator,
+  #page-scoresheet .checks-panel {
+    position: sticky;
+    top: var(--header-height);
+    z-index: 20;
   }
 
   .scoresheet-table thead th {

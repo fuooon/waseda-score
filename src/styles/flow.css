@@ -18,6 +18,12 @@
 
 /* ---------- Shared bits ---------- */
 
+/* A page that just appeared ignores taps briefly (main.js), so the second tap
+   of a double tap does not hit the new page. */
+.page.page-entering {
+  pointer-events: none;
+}
+
 .form-hint,
 .page-hint {
   font-size: 0.85rem;

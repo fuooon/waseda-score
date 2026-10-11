@@ -73,7 +73,7 @@
                 <select id="team-first-preset" class="team-preset-select" aria-label="先攻チームを登録チームから選ぶ">
                   <option value="">登録チームから選ぶ</option>
                 </select>
-                <input type="text" id="team-first" placeholder="チーム名（空欄でもOK）" autocomplete="off" />
+                <input type="text" id="team-first" placeholder="チーム名（空欄でもOK）" autocomplete="off" maxlength="30" />
               </div>
               <div class="vs-label">VS</div>
               <div class="form-group">
@@ -81,12 +81,12 @@
                 <select id="team-second-preset" class="team-preset-select" aria-label="後攻チームを登録チームから選ぶ">
                   <option value="">登録チームから選ぶ</option>
                 </select>
-                <input type="text" id="team-second" placeholder="チーム名（空欄でもOK）" autocomplete="off" />
+                <input type="text" id="team-second" placeholder="チーム名（空欄でもOK）" autocomplete="off" maxlength="30" />
               </div>
             </div>
             <div class="form-group">
               <label for="game-field">球場</label>
-              <input type="text" id="game-field" placeholder="球場名（空欄でもOK）" autocomplete="off" />
+              <input type="text" id="game-field" placeholder="球場名（空欄でもOK）" autocomplete="off" maxlength="40" />
             </div>
             <div class="form-row form-row-pair">
               <div class="form-group">
@@ -184,7 +184,7 @@
               <form id="member-form">
                 <div class="form-group">
                   <label for="member-name">名前</label>
-                  <input type="text" id="member-name" placeholder="選手名" autocomplete="off" required />
+                  <input type="text" id="member-name" placeholder="選手名" autocomplete="off" maxlength="24" required />
                 </div>
                 <div class="form-row">
                   <div class="form-group">
@@ -232,7 +232,7 @@
           <form id="team-form">
             <div class="form-group">
               <label for="team-name-input">チーム名</label>
-              <input type="text" id="team-name-input" placeholder="チーム名" autocomplete="off" required />
+              <input type="text" id="team-name-input" placeholder="チーム名" autocomplete="off" maxlength="30" required />
             </div>
             <div class="modal-actions">
               <button type="button" id="cancel-team-btn" class="btn btn-secondary">キャンセル</button>

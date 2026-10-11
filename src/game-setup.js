@@ -170,10 +170,17 @@ function renderPresets() {
     if (!select) continue;
     select.innerHTML = '<option value="">登録チームから選ぶ</option>' +
       teams.map(t => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.name)}</option>`).join('');
-    const wantedId = draftGame?.[side.idField];
-    const team = (wantedId && getTeamById(wantedId) && normalizeTeamName(getTeamById(wantedId).name) === normalizeTeamName(el(side.input).value))
-      ? getTeamById(wantedId)
-      : findTeamByName(el(side.input).value);
+    const input = el(side.input);
+    const linked = getTeamById(draftGame?.[side.idField]);
+    // The draft's team was renamed in メンバー管理 meanwhile: follow the new name
+    // while the field still holds the name saved with the draft (keeps the link
+    // to the team's players).
+    if (linked && normalizeTeamName(input.value) === normalizeTeamName(draftGame[side.nameField])) {
+      input.value = linked.name;
+    }
+    const team = linked && normalizeTeamName(linked.name) === normalizeTeamName(input.value)
+      ? linked
+      : findTeamByName(input.value);
     select.value = team ? team.id : '';
     select.classList.toggle('hidden', teams.length === 0);
   }

@@ -378,6 +378,16 @@ function chainTop(S) {
   return Math.min(top, 4);
 }
 
+// A runner whose advance events already took him home cannot be put out.
+function canBeOut(S) {
+  return chainTop(S) < 4;
+}
+
+// Room for one more advance event: an out runner stops short of home.
+function canAdvance(S) {
+  return chainTop(S) < (S.dest === 'out' ? 3 : 4);
+}
+
 // Last base the runner reached safely.
 function safeBase(S) {
   if (S.dest === 'out') return S.outType === 'PICKOFF' ? S.outBase : Math.max(S.outBase - 1, 1);
@@ -489,7 +499,7 @@ export function selectResult(S, id) {
 export function setDest(S, value) {
   if (!runnerCanMove(S)) return;
   if (value === 'out') {
-    if (S.dest !== 'out') {
+    if (S.dest !== 'out' && canBeOut(S)) {
       const prev = typeof S.dest === 'number' ? Math.min(S.dest, 3) : baseZero(S);
       S.dest = 'out';
       S.outType = 'RUNNER_OUT';
@@ -561,15 +571,15 @@ export function addEvent(S, type) {
   if (!ev || !runnerCanMove(S)) return;
   S.eventsOpen = true;
   if (ev.isOut) {
+    if (!canBeOut(S)) return;
     const safe = Math.min(S.dest === 'out' ? safeBase(S) : typeof S.dest === 'number' ? S.dest : baseZero(S), 3);
     S.dest = 'out';
     S.outType = type;
     S.outBase = type === 'PICKOFF' ? clamp(safe, 1, 3) : clamp(safe + 1, 2, 4);
     fixOutBase(S);
   } else {
-    const top = chainTop(S);
-    if (top >= 4) return;
-    const base = top + 1;
+    if (!canAdvance(S)) return;
+    const base = chainTop(S) + 1;
     S.events.push({ type, base });
     if (S.dest === 'out') {
       if (safeBase(S) < base) S.outBase = S.outType === 'PICKOFF' ? Math.min(base, 3) : Math.min(base + 1, 4);
@@ -832,7 +842,7 @@ function renderDest(S) {
     buttons += segButton('dest', b, baseName(b), S.dest === b, dis ? ' disabled' : '');
   }
   buttons += segButton('dest', 4, '得点', S.dest === 4);
-  buttons += segButton('dest', 'out', 'アウト', S.dest === 'out');
+  buttons += segButton('dest', 'out', 'アウト', S.dest === 'out', S.dest !== 'out' && !canBeOut(S) ? ' disabled' : '');
   const who = S.isPlaced ? 'この走者' : '打者';
   let sub = '';
   if (S.dest === 'out') {
@@ -944,7 +954,8 @@ function renderEvents(S) {
   }
   const btn = type => {
     const ev = RUNNER_EVENTS[type];
-    return `<button type="button" class="si-ev-btn${ev.isOut ? ' is-out' : ''}" data-act="event-add" data-type="${type}" style="--ev:${ev.color}">
+    const off = ev.isOut ? !canBeOut(S) : !canAdvance(S);
+    return `<button type="button" class="si-ev-btn${ev.isOut ? ' is-out' : ''}" data-act="event-add" data-type="${type}" style="--ev:${ev.color}"${off ? ' disabled' : ''}>
       <span class="si-ev-sym">${escapeHtml(ev.symbol)}</span><span class="si-ev-label">${escapeHtml(ev.label.replace(/（.*）$/, ''))}</span></button>`;
   };
   const items = list.map((e, i) => {
@@ -1065,6 +1076,81 @@ let staticBound = false;
 let session = null; // state of the panel currently open (replaced on every open)
 let downOnBackdrop = false;
 
+// Phone back button: an open panel owns one browser-history entry, so "back"
+// closes the panel instead of leaving the app.
+let historyEntry = false; // our entry is the current one
+let pendingBacks = 0;     // our own history.back() calls whose popstate is still to come
+
+// Ghost taps: the second tap of a quick double tap that opened or closed the
+// panel (or folded the result grid) lands on whatever is under the finger by
+// then — another cell of the sheet, a keypad key, the backdrop. It is dropped.
+const GHOST_MS = 450;
+const GHOST_PX = 24;
+const ghost = { x: 0, y: 0, until: 0 };
+let lastDown = null; // { x, y, t, touch } of the latest pointerdown anywhere
+
+function now() {
+  return typeof performance !== 'undefined' ? performance.now() : Date.now();
+}
+
+function armGhostGuard(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+  ghost.x = x;
+  ghost.y = y;
+  ghost.until = now() + GHOST_MS;
+}
+
+function dropGhostClick(e) {
+  if (!ghost.until || now() > ghost.until) return;
+  // only a real double tap: a second click (detail 2) or a touch tap on the same spot
+  const doubleTap = e.detail >= 2 || !!lastDown?.touch;
+  if (!doubleTap || Math.abs(e.clientX - ghost.x) > GHOST_PX || Math.abs(e.clientY - ghost.y) > GHOST_PX) return;
+  ghost.until = 0;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+}
+
+// Bound when the module loads, so the tap that opens the panel the first time is seen.
+function bindGlobalOnce() {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+  document.addEventListener('pointerdown', e => {
+    lastDown = { x: e.clientX, y: e.clientY, t: now(), touch: e.pointerType === 'touch' };
+  }, true);
+  document.addEventListener('click', dropGhostClick, true);
+  window.addEventListener('popstate', () => {
+    if (pendingBacks > 0) {
+      pendingBacks--;
+      return;
+    }
+    if (!historyEntry) return;
+    historyEntry = false;
+    if (session) closeScoreInput();
+  });
+}
+bindGlobalOnce();
+
+function pushHistoryEntry() {
+  if (historyEntry) return;
+  try {
+    // after a reload with the panel open, the current entry is still ours: reuse it
+    if (pendingBacks > 0 || !history.state?.scoreInput) history.pushState({ scoreInput: true }, '');
+    historyEntry = true;
+  } catch {
+    // history not available
+  }
+}
+
+function dropHistoryEntry() {
+  if (!historyEntry) return;
+  historyEntry = false;
+  try {
+    pendingBacks++;
+    history.back();
+  } catch {
+    pendingBacks = Math.max(0, pendingBacks - 1);
+  }
+}
+
 function els() {
   return {
     modal: document.getElementById('score-input-modal'),
@@ -1077,11 +1163,19 @@ function bindStaticOnce(modal) {
   if (staticBound) return;
   staticBound = true;
   const closeBtn = document.getElementById('close-score-input');
-  if (closeBtn) closeBtn.addEventListener('click', () => closeScoreInput());
+  if (closeBtn) {
+    closeBtn.addEventListener('click', e => {
+      armGhostGuard(e.clientX, e.clientY);
+      closeScoreInput();
+    });
+  }
   // backdrop tap (press and release both on the backdrop, so a scroll that ends there does not close)
   modal.addEventListener('pointerdown', e => { downOnBackdrop = e.target === modal; });
   modal.addEventListener('click', e => {
-    if (e.target === modal && downOnBackdrop) closeScoreInput();
+    if (e.target === modal && downOnBackdrop) {
+      armGhostGuard(e.clientX, e.clientY);
+      closeScoreInput();
+    }
     downOnBackdrop = false;
   });
   document.addEventListener('keydown', e => {
@@ -1093,6 +1187,7 @@ function bindStaticOnce(modal) {
   modal.setAttribute('role', 'dialog');
   modal.setAttribute('aria-modal', 'true');
   modal.setAttribute('aria-labelledby', 'score-input-title');
+  modal.querySelector('.modal-content')?.setAttribute('tabindex', '-1');
 }
 
 export function closeScoreInput() {
@@ -1100,6 +1195,7 @@ export function closeScoreInput() {
   session = null;
   if (modal) modal.classList.add('hidden');
   if (body) body.innerHTML = '';
+  dropHistoryEntry();
 }
 
 function scrollToSection(S, name) {
@@ -1154,11 +1250,29 @@ function onClear(S) {
   finish(S, { thirdOut: false, changedKeys: res.changedKeys, half: res.half });
 }
 
+// The sections are rebuilt on every tap: keep keyboard focus on the same button
+// (or on the panel when it is gone) instead of losing it to the page.
+function refocus(S, old) {
+  const esc = v => (typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(v) : String(v).replace(/["\\]/g, '\\$&'));
+  const sel = ['act', 'v', 'key', 'id', 'k', 'type', 'i']
+    .filter(n => old.dataset[n] !== undefined)
+    .map(n => `[data-${n}="${esc(old.dataset[n])}"]`).join('');
+  const next = sel && S.root.querySelector(sel);
+  const target = next && !next.disabled ? next : S.root.closest('.modal-content');
+  target?.focus({ preventScroll: true });
+}
+
+const GHOST_ACTS = new Set(['result', 'results-toggle', 'events-open', 'cancel', 'clear', 'confirm']);
+
 function handleClick(S, e) {
   const btn = e.target.closest('[data-act]');
   if (!btn || session !== S || !S.root.contains(btn) || btn.disabled) return;
   const v = btn.dataset.v;
   const scrollAfter = { name: null };
+  // taps that close the panel or move things under the finger
+  if (GHOST_ACTS.has(btn.dataset.act) && (btn.dataset.act !== 'result' || S.resultsOpen)) {
+    armGhostGuard(e.clientX, e.clientY);
+  }
   switch (btn.dataset.act) {
     case 'result': {
       const wasOpen = S.resultsOpen;
@@ -1180,11 +1294,16 @@ function handleClick(S, e) {
     case 'event-remove': removeEvent(S, Number(btn.dataset.i)); break;
     case 'goto-preview': scrollToSection(S, 'preview'); return;
     case 'cancel': closeScoreInput(); return;
-    case 'clear': onClear(S); return;
+    case 'clear':
+      onClear(S);
+      armGhostGuard(e.clientX, e.clientY); // again: the confirm() may have taken a while
+      return;
     case 'confirm': onConfirm(S); return;
     default: return;
   }
+  const hadFocus = document.activeElement === btn;
   render(S);
+  if (hadFocus) refocus(S, btn);
   if (scrollAfter.name) scrollToSection(S, scrollAfter.name);
 }
 
@@ -1192,6 +1311,8 @@ export function openScoreInput(game, target, { onSave } = {}) {
   const { modal, title, body } = els();
   if (!modal || !body || !game || !target || target.key === undefined || target.key === null) return;
   bindStaticOnce(modal);
+  // the tap that opened the panel (a sheet cell, "次: 5番"...): its double is a ghost
+  if (lastDown && now() - lastDown.t < 1000) armGhostGuard(lastDown.x, lastDown.y);
   const S = createState(game, target);
   S.onSave = typeof onSave === 'function' ? onSave : null;
   S.alerted = false;
@@ -1203,4 +1324,7 @@ export function openScoreInput(game, target, { onSave } = {}) {
   render(S);
   modal.classList.remove('hidden');
   S.root.querySelector('.si-scroll').scrollTop = 0;
+  // keyboard focus into the panel (a plain box: no soft keyboard)
+  modal.querySelector('.modal-content')?.focus({ preventScroll: true });
+  pushHistoryEntry();
 }

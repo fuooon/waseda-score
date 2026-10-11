@@ -19,7 +19,7 @@ import { saveGame } from './data.js';
 import { POSITION_SHORT, MAX_INNINGS, INNINGS_OPTIONS } from './rules.js';
 import {
   halfInning, liveState, scoreboard, playerLine, validateGame, keyFor, parseKey,
-  inningLabel, batterLabel, ensureTiebreakRunners, gameEndState, lineupSize,
+  inningLabel, batterLabel, ensureTiebreakRunners, gameEndState, lineupSize, isTiebreakInning,
 } from './scoring.js';
 import { renderCellHTML } from './cell-render.js';
 import { describeCell, describeHalfInning, baseName } from './describe.js';
@@ -67,8 +67,7 @@ function el(id) {
 }
 
 function lineupOf(teamKey) {
-  const lineup = teamKey === 'second' ? currentGame.lineupSecond : currentGame.lineupFirst;
-  return Array.isArray(lineup) ? lineup : [];
+  return slotLineup(currentGame, teamKey);
 }
 
 function teamName(teamKey) {
@@ -84,6 +83,11 @@ function viewCursor() {
 
 function isSameHalf(a, b) {
   return !!a && !!b && a.inning === b.inning && a.teamKey === b.teamKey;
+}
+
+// A half-inning after the one being played (its batting order is not known yet).
+function isNotYet(view, inning, teamKey) {
+  return !view.live.gameOver && halfIndex(inning, teamKey) > halfIndex(view.live.inning, view.live.teamKey);
 }
 
 function persist() {
@@ -201,7 +205,7 @@ export function updateScoresheet() {
   const view = computeView();
   lastIssues = view.issues;
   renderNav(view);
-  renderScoreboard(el('score-summary'), currentGame);
+  renderScoreboard(el('score-summary'), currentGame, { columns: view.columns });
   renderStatusBar(view);
   renderChecksPanel(view);
   renderTables(view);
@@ -286,7 +290,7 @@ function handleStatusClick(e) {
   const btn = e.target.closest('[data-action]');
   if (!btn || !currentGame) return;
   if (btn.dataset.action === 'open-next') {
-    openCell(btn.dataset.team, Number(btn.dataset.inning), btn.dataset.key);
+    handleCellTap(btn.dataset.team, Number(btn.dataset.inning), btn.dataset.key);
   } else if (btn.dataset.action === 'goto-live') {
     const live = liveState(currentGame);
     goToHalf(live.inning, live.teamKey);
@@ -387,6 +391,7 @@ function renderStatusBar(view) {
   const half = halfInning(game, cursor.teamKey, cursor.inning);
   const isLive = isSameHalf(cursor, live);
   const afterEnd = live.gameOver && halfIndex(cursor.inning, cursor.teamKey) > halfIndex(live.inning, live.teamKey);
+  const notYet = isNotYet(view, cursor.inning, cursor.teamKey);
 
   let html = '';
   if (live.gameOver) {
@@ -419,6 +424,8 @@ function renderStatusBar(view) {
     action = '<span class="status-note">試合は終わっているので、この回の記録はいりません。</span>';
   } else if (half.skipped) {
     action = `<span class="status-note">後攻チームがリードしているので、${cursor.inning}回裏の攻撃はありません（X）。</span>`;
+  } else if (notYet) {
+    action = '<span class="status-note">まだ始まっていない回です。</span>';
   } else if (half.nextBatter && (isLive || (!half.complete && !live.gameOver))) {
     const nb = half.nextBatter;
     const lapText = nb.lap > 0 ? `<small>（${nb.lap + 1}打席目）</small>` : '';
@@ -506,10 +513,12 @@ function goToIssue(issue) {
   const container = el('scoresheet-container');
   if (!container) return;
   const hasKey = issue.key !== null && issue.key !== undefined;
-  let target = hasKey
-    ? container.querySelector(`[data-team="${issue.teamKey}"][data-inning="${issue.inning}"][data-key="${CSS.escape(String(issue.key))}"]`)
-    : container.querySelector(`.inning-footer[data-team="${issue.teamKey}"][data-inning="${issue.inning}"]`);
-  if (target && target.classList.contains('tb-badge')) target = target.closest('td');
+  const where = `[data-team="${issue.teamKey}"][data-inning="${issue.inning}"]`;
+  const keyAttr = hasKey ? `[data-key="${CSS.escape(String(issue.key))}"]` : '';
+  // A placed runner shown as a badge inside a batter's cell: the badge has the key.
+  const target = hasKey
+    ? container.querySelector(`td.score-cell${where}${keyAttr}`) || container.querySelector(`td.score-cell${where} .tb-badge${keyAttr}`)?.closest('td')
+    : container.querySelector(`.inning-footer${where}`);
   if (!target) {
     showToast(`${inningLabel(issue.inning, issue.teamKey)}の欄が見つかりませんでした。`, 'warning');
     return;
@@ -519,10 +528,12 @@ function goToIssue(issue) {
     flash([target]);
     clearTimeout(pendingOpenTimer);
     pendingOpenTimer = setTimeout(() => {
+      // the user opened something else (or left the page) meanwhile
+      if (document.querySelector('.modal:not(.hidden)') || !el('page-scoresheet')?.classList.contains('active')) return;
       if (cellAt(issue.teamKey, issue.inning, issue.key)) openCell(issue.teamKey, issue.inning, issue.key);
     }, 700);
   } else {
-    flash([...container.querySelectorAll(`td[data-team="${issue.teamKey}"][data-inning="${issue.inning}"]`)]);
+    flash([...container.querySelectorAll(`td${where}`)]);
   }
 }
 
@@ -701,10 +712,12 @@ function scoreCellHTML(teamKey, b, c, ctx) {
     inner = renderCellHTML(entry.cell);
     if (inner) cls.push('has-result');
   }
+  // The slot's turn at bat has come: its cell is for the plate appearance now.
+  const due = !entry && !!half.nextBatter && half.nextBatter.key === key;
   if (placed) {
     const startBase = info.startBase(b);
-    if (entry) {
-      // Same slot batted again in this inning: the placed runner becomes a badge.
+    if (entry || due) {
+      // Same slot bats in this inning: the placed runner becomes a badge.
       const where = placed.state === 'SCORED' ? '生還' : placed.state === 'OUT' ? 'アウト'
         : BASE_SHORT[Number(placed.cell.basesReached)] ? BASE_SHORT[Number(placed.cell.basesReached)] + '塁' : '';
       const text = describeCell(placed.cell, { startBase });
@@ -731,7 +744,8 @@ function scoreCellHTML(teamKey, b, c, ctx) {
 
   // Next batter: only where the user is recording (viewing half, or the live half).
   const nb = half.nextBatter;
-  const showNext = nb && !entry && nb.key === key && isActive && (!half.complete || isSameHalf(ctx.view.cursor, ctx.live));
+  const showNext = nb && !entry && nb.key === key && isActive && !isNotYet(ctx.view, c.inning, teamKey) &&
+    (!half.complete || isSameHalf(ctx.view.cursor, ctx.live));
   if (showNext) {
     cls.push('next-batter');
     inner += '<span class="next-tag" aria-hidden="true">次</span>';
@@ -768,14 +782,14 @@ function continuityWarning(teamKey, inning, key) {
   if (half.outs >= 3) {
     return `${label}はもう3アウトで終わっています。\n${who}の欄に記録しますか？（次の回の欄ではありませんか？）`;
   }
+  if (!live.gameOver && here > liveIdx) {
+    return `いまは${inningLabel(live.inning, live.teamKey)}（${teamName(live.teamKey)}の攻撃）の途中です。\n${label}の${who}の欄に記録しますか？`;
+  }
   if (half.nextBatter && half.nextBatter.key !== String(key)) {
     const nb = half.nextBatter;
     const next = batterLabel(game, teamKey, nb.batterIdx) + (nb.lap > 0 ? `（${nb.lap + 1}打席目）` : '');
     const mine = who + (parsed.lap > 0 ? `（${parsed.lap + 1}打席目）` : '');
     return `次の打者は${next}です。\n${mine}の欄に記録しますか？`;
-  }
-  if (!live.gameOver && here > liveIdx) {
-    return `いまは${inningLabel(live.inning, live.teamKey)}（${teamName(live.teamKey)}の攻撃）の途中です。\n${label}の${who}の欄に記録しますか？`;
   }
   return '';
 }
@@ -851,7 +865,9 @@ function revealInWrapper(target, { behavior = 'smooth', alignBlock = null, moveW
   const playerHead = table?.querySelector('.player-header');
   const headRow = table?.querySelector('thead');
   const leftInset = target.classList.contains('player-cell') ? 0 : playerHead ? playerHead.getBoundingClientRect().width : 0;
-  const topInset = headRow ? headRow.getBoundingClientRect().height : 0;
+  const headCell = headRow?.querySelector('th.inning-head');
+  const stickyHead = headCell && getComputedStyle(headCell).position === 'sticky';
+  const topInset = stickyHead ? headRow.getBoundingClientRect().height : 0;
 
   let dx = 0;
   if (r.left < w.left + leftInset) dx = r.left - (w.left + leftInset) - 8;
@@ -868,8 +884,10 @@ function revealInWrapper(target, { behavior = 'smooth', alignBlock = null, moveW
   if (dx || dy) wrapper.scrollBy({ left: dx, top: dy, behavior });
 
   if (!canScrollY && moveWindow) {
+    // Below the fixed app header, and below ◀ ▶ while they stick under it.
     const header = el('app-header');
-    const top = (header ? header.getBoundingClientRect().bottom : 0) + topInset;
+    const nav = document.querySelector('#page-scoresheet .inning-indicator');
+    const top = Math.max(header ? header.getBoundingClientRect().bottom : 0, nav ? nav.getBoundingClientRect().bottom : 0) + topInset;
     if (r.top < top) window.scrollBy({ top: r.top - top - 8, behavior });
     else if (r.bottom > window.innerHeight) window.scrollBy({ top: r.bottom - window.innerHeight + 8, behavior });
   }
@@ -921,36 +939,88 @@ function playerSnapshot(p = {}) {
 }
 
 // Substitutions of one batting slot in playing order (inning, then record order).
-function orderedSlotSubs(teamKey, b) {
-  return (currentGame.substitutions || [])
+function orderedSlotSubs(game, teamKey, b) {
+  return (Array.isArray(game.substitutions) ? game.substitutions : [])
     .map((s, i) => ({ s, i }))
     .filter(x => x.s && x.s.teamKey === teamKey && Number(x.s.batterIdx) === b)
     .sort((x, y) => (Number(x.s.inning) || 0) - (Number(y.s.inning) || 0) || x.i - y.i)
     .map(x => x.s);
 }
 
+function slotLineup(game, teamKey) {
+  const lineup = teamKey === 'second' ? game.lineupSecond : game.lineupFirst;
+  return Array.isArray(lineup) ? lineup : [];
+}
+
 // The player who started in the slot (before any substitution).
-function slotStarter(teamKey, b) {
-  const subs = orderedSlotSubs(teamKey, b);
-  return subs.length ? playerSnapshot(subs[0].oldPlayer) : playerSnapshot(lineupOf(teamKey)[b]);
+function slotStarter(game, teamKey, b) {
+  const subs = orderedSlotSubs(game, teamKey, b);
+  return subs.length ? playerSnapshot(subs[0].oldPlayer) : playerSnapshot(slotLineup(game, teamKey)[b]);
+}
+
+// Replays substitutions (in playing order) from `starter` and returns the
+// player who ends up in the slot. A substitution with keepPosition takes the
+// position of the player it replaced; a position-only one keeps the player.
+// write: also rewrite each oldPlayer / newPlayer so the history stays a chain.
+function replaySlot(subs, starter, write) {
+  let cur = playerSnapshot(starter);
+  for (const sub of subs) {
+    const np = sub.newPlayer || {};
+    let next;
+    if (sub.positionOnly) {
+      next = { ...cur, position: np.position || cur.position };
+    } else {
+      next = {
+        name: np.name || '',
+        number: np.number === undefined || np.number === null ? '' : String(np.number),
+        position: sub.keepPosition || !np.position ? cur.position : np.position,
+      };
+      if (np.memberId) next.memberId = np.memberId;
+    }
+    if (write) {
+      sub.oldPlayer = playerSnapshot(cur);
+      sub.newPlayer = sub.positionOnly ? playerSnapshot(next) : { ...np, position: next.position };
+    }
+    cur = next;
+  }
+  return cur;
+}
+
+// The lineup page edits the slot's current player directly. Carry such edits
+// into the substitution chain, so replaying it (after an undo or a new
+// substitution) does not bring the old name or position back. Returns true
+// when something was adopted.
+function adoptLineupEdits(game, teamKey, b) {
+  const subs = orderedSlotSubs(game, teamKey, b);
+  const entry = slotLineup(game, teamKey)[b];
+  if (!subs.length || !entry) return false;
+  const now = playerSnapshot(entry);
+  const chain = replaySlot(subs, subs[0].oldPlayer || {}, false);
+  let changed = false;
+  if (now.name !== chain.name || now.number !== chain.number || (now.memberId || '') !== (chain.memberId || '')) {
+    // the latest player who came in (or the starter when only positions changed)
+    const holder = [...subs].reverse().find(s => !s.positionOnly);
+    const target = holder ? (holder.newPlayer = holder.newPlayer || {}) : (subs[0].oldPlayer = subs[0].oldPlayer || {});
+    target.name = now.name;
+    target.number = now.number;
+    if (now.memberId) target.memberId = now.memberId;
+    else delete target.memberId;
+    changed = true;
+  }
+  if (now.position && now.position !== chain.position) {
+    const last = subs[subs.length - 1];
+    last.newPlayer = { ...(last.newPlayer || {}), position: now.position };
+    delete last.keepPosition;
+    changed = true;
+  }
+  return changed;
 }
 
 // Replays the slot's substitutions from the starter: rewrites each oldPlayer
 // so the history stays a chain, and puts the resulting player in the lineup.
-function recomputeSlot(teamKey, b, starter) {
-  let cur = playerSnapshot(starter);
-  for (const sub of orderedSlotSubs(teamKey, b)) {
-    sub.oldPlayer = playerSnapshot(cur);
-    const np = sub.newPlayer || {};
-    const next = sub.positionOnly
-      ? { ...cur }
-      : { name: np.name || '', number: np.number === undefined || np.number === null ? '' : String(np.number), position: cur.position };
-    if (!sub.positionOnly && np.memberId) next.memberId = np.memberId;
-    if (np.position) next.position = np.position;
-    if (sub.positionOnly) sub.newPlayer = { ...playerSnapshot(next) };
-    cur = next;
-  }
-  const lineup = lineupOf(teamKey);
+function recomputeSlot(game, teamKey, b, starter) {
+  const cur = replaySlot(orderedSlotSubs(game, teamKey, b), starter, true);
+  const lineup = slotLineup(game, teamKey);
   if (!lineup[b]) lineup[b] = { name: '', number: '', position: '', bat: 'right', memberId: '' };
   const entry = lineup[b];
   entry.name = cur.name;
@@ -959,8 +1029,66 @@ function recomputeSlot(teamKey, b, starter) {
   entry.memberId = cur.memberId || '';
 }
 
+// Brings lineup-page edits into the slot's history (see adoptLineupEdits).
+// Returns true when the game changed.
+export function syncSlotSubstitutions(game, teamKey, b) {
+  if (!adoptLineupEdits(game, teamKey, b)) return false;
+  recomputeSlot(game, teamKey, b, slotStarter(game, teamKey, b));
+  return true;
+}
+
+// Records a substitution ({ type, teamKey, inning, batterIdx, newPlayer,
+// positionOnly?, keepPosition? }); the lineup then holds the player now in the slot.
+export function addSlotSubstitution(game, sub) {
+  const b = Number(sub.batterIdx);
+  adoptLineupEdits(game, sub.teamKey, b);
+  const starter = slotStarter(game, sub.teamKey, b);
+  if (!Array.isArray(game.substitutions)) game.substitutions = [];
+  game.substitutions.push(sub);
+  recomputeSlot(game, sub.teamKey, b, starter);
+}
+
+// The player who would be in the slot if `sub` were undone.
+export function playerAfterUndo(game, sub) {
+  const b = Number(sub.batterIdx);
+  adoptLineupEdits(game, sub.teamKey, b);
+  const rest = orderedSlotSubs(game, sub.teamKey, b).filter(s => s !== sub);
+  return replaySlot(rest, slotStarter(game, sub.teamKey, b), false);
+}
+
+// Undoes a substitution: removes it and replays the slot's remaining ones from
+// the starting player (lineup and the history chain follow).
+export function removeSlotSubstitution(game, sub) {
+  const idx = Array.isArray(game.substitutions) ? game.substitutions.indexOf(sub) : -1;
+  if (idx < 0) return false;
+  const b = Number(sub.batterIdx);
+  adoptLineupEdits(game, sub.teamKey, b);
+  const starter = slotStarter(game, sub.teamKey, b);
+  game.substitutions.splice(idx, 1);
+  recomputeSlot(game, sub.teamKey, b, starter);
+  return true;
+}
+
+// Registered players of the team on that side of the game (by the team saved
+// at setup, else by name).
+function registeredMembers(game, teamKey) {
+  let list = [];
+  try {
+    if (typeof teamMembers.getMembersForGame === 'function') {
+      list = teamMembers.getMembersForGame(game, teamKey);
+    } else if (typeof teamMembers.getMembersByTeamName === 'function') {
+      const name = String((teamKey === 'second' ? game.teamSecond : game.teamFirst) || '').trim();
+      list = name ? teamMembers.getMembersByTeamName(name) : [];
+    }
+  } catch {
+    list = [];
+  }
+  return (Array.isArray(list) ? list : []).filter(m => m && m.name);
+}
+
 function openSubstitutionModal(teamKey, b) {
   if (!currentGame || !Number.isInteger(b)) return;
+  if (syncSlotSubstitutions(currentGame, teamKey, b)) persist();
   renderSubstitutionBody(teamKey, b);
   openModal('substitution-modal');
 }
@@ -974,12 +1102,10 @@ function renderSubstitutionBody(teamKey, b) {
   const player = lineup[b] || {};
   const view = computeView();
   const defaultInning = view.cursor.inning;
-  const subs = orderedSlotSubs(teamKey, b);
-  const rawTeamName = String((teamKey === 'second' ? game.teamSecond : game.teamFirst) || '').trim();
-  const members = rawTeamName && typeof teamMembers.getMembersByTeamName === 'function'
-    ? (teamMembers.getMembersByTeamName(rawTeamName) || []).filter(m => m && m.name)
-    : [];
+  const subs = orderedSlotSubs(game, teamKey, b);
+  const members = registeredMembers(game, teamKey);
   const inLineup = new Set(lineup.map(p => p && p.name).filter(Boolean));
+  for (const p of lineup) if (p && p.memberId) inLineup.add(`id:${p.memberId}`);
   const posOptions = Object.keys(POSITION_SHORT).filter(p => p !== 'DH' || game.useDH || player.position === 'DH');
 
   if (title) title.textContent = `${b + 1}番の選手交代（${teamKey === 'first' ? '先攻' : '後攻'}）`;
@@ -1004,7 +1130,7 @@ function renderSubstitutionBody(teamKey, b) {
   if (members.length) {
     html += '<div class="form-group"><label for="sub-member">登録メンバーから選ぶ</label><select id="sub-member"><option value="">-- 選ぶ --</option>' +
       members.map((m, i) => `<option value="${i}">${escapeHtml(m.name)}${m.number !== '' && m.number !== undefined && m.number !== null ? ` #${escapeHtml(m.number)}` : ''}` +
-        `${inLineup.has(m.name) ? '（出場中）' : ''}</option>`).join('') +
+        `${inLineup.has(m.name) || inLineup.has(`id:${m.id}`) ? '（出場中）' : ''}</option>`).join('') +
       '</select></div>';
   }
   html += '<div class="form-row sub-form-row">' +
@@ -1079,7 +1205,7 @@ function renderSubstitutionBody(teamKey, b) {
       return;
     }
 
-    const starter = slotStarter(teamKey, b);
+    const before = playerSnapshot(player); // `player` is the lineup entry: replaced below
     const sub = {
       type: selectedType,
       teamKey,
@@ -1091,17 +1217,16 @@ function renderSubstitutionBody(teamKey, b) {
         : { name, number, position: position || player.position || '' },
     };
     if (positionOnly) sub.positionOnly = true;
+    else if (!position) sub.keepPosition = true; // 守備位置「そのまま」: takes over the replaced player's position
     if (!positionOnly && member && member.name === name && member.id) sub.newPlayer.memberId = member.id;
-    if (typeof game.addSubstitution === 'function') game.addSubstitution(sub);
-    else (game.substitutions = game.substitutions || []).push(sub);
-    recomputeSlot(teamKey, b, starter);
+    addSlotSubstitution(game, sub);
     persist();
     closeModal('substitution-modal');
     updateScoresheet();
     const type = SUB_TYPES[selectedType];
     showToast(positionOnly
-      ? `${b + 1}番 ${player.name || ''}：守備位置を${POSITION_SHORT[position] || position}に変更（${inning}回から）`
-      : `${b + 1}番：${player.name || '---'} → ${name}（${type.label}・${inning}回から）`, 'success');
+      ? `${b + 1}番 ${before.name || ''}：守備位置を${POSITION_SHORT[position] || position}に変更（${inning}回から）`
+      : `${b + 1}番：${before.name || '---'} → ${name}（${type.label}・${inning}回から）`, 'success');
   });
 
   body.querySelectorAll('.sub-undo-btn').forEach(btn => {
@@ -1113,21 +1238,13 @@ function undoSubstitution(teamKey, b, idx) {
   const game = currentGame;
   const sub = game.substitutions?.[idx];
   if (!sub || sub.teamKey !== teamKey || Number(sub.batterIdx) !== b) return;
-  const starter = slotStarter(teamKey, b);
   const type = SUB_TYPES[sub.type] || SUB_TYPES.DEF;
-  const remaining = orderedSlotSubs(teamKey, b).filter(s => s !== sub);
-  // Who plays in the slot after the undo (the player of the last remaining substitution).
-  let after = playerSnapshot(starter);
-  for (const s of remaining) {
-    if (s.positionOnly) after = { ...after, position: s.newPlayer?.position || after.position };
-    else after = { ...after, name: s.newPlayer?.name || '', position: s.newPlayer?.position || after.position };
-  }
+  const after = playerAfterUndo(game, sub);
   const message = `${Number(sub.inning) || '?'}回の${type.label}（${sub.positionOnly ? '守備位置の変更' : `${sub.oldPlayer?.name || '---'} → ${sub.newPlayer?.name || '---'}`}）を取り消しますか？\n` +
     `${b + 1}番は ${after.name || '---'} になります。`;
   if (!window.confirm(message)) return;
 
-  game.substitutions.splice(idx, 1);
-  recomputeSlot(teamKey, b, starter);
+  removeSlotSubstitution(game, sub);
   persist();
   updateScoresheet();
   renderSubstitutionBody(teamKey, b);
@@ -1171,7 +1288,8 @@ function openGameSettings() {
   const innings = Number(g.innings) || 7;
   const inningOptions = [...new Set([...INNINGS_OPTIONS, innings])].sort((a, b) => a - b);
   const tbInning = Number(g.tiebreakerInning) || 0;
-  const tbOptions = [...new Set([5, 6, 7, 8, 9, 10, ...(tbInning ? [tbInning] : [])])].sort((a, b) => a - b);
+  // Any inning from 2: leagues often switch to the tiebreak when time runs out.
+  const tbOptions = Array.from({ length: MAX_INNINGS - 1 }, (_, i) => i + 2);
   const tbRunners = ['1B2B', '2B', '1B'].includes(g.tiebreakerRunners) ? g.tiebreakerRunners : '1B2B';
   const status = g.status === 'final' ? 'final' : 'in_progress';
   const attr = v => escapeHtml(v === undefined || v === null ? '' : v);
@@ -1310,15 +1428,50 @@ function saveSettings(form) {
   const innings = Number(value('#set-innings'));
   if (Number.isInteger(innings) && innings >= 1 && innings <= MAX_INNINGS) g.innings = innings;
   const tbInning = Number(value('#set-tb-inning')) || 0;
+  const tbRunners = tbInning ? value('#set-tb-runners') : 'none';
+  const tbChanged = tbInning !== (Number(g.tiebreakerInning) || 0) || tbRunners !== (g.tiebreakerRunners || 'none');
   g.tiebreakerInning = tbInning;
-  g.tiebreakerRunners = tbInning ? value('#set-tb-runners') : 'none';
+  g.tiebreakerRunners = tbRunners;
   g.status = value('#set-status') === 'final' ? 'final' : 'in_progress';
   g.endReason = g.status === 'final' ? value('#set-end-reason') : '';
 
+  const leftover = tbChanged ? removeUnplayedPlacedRunners(g) : [];
   const live = liveState(g);
   if (!live.gameOver) ensureTiebreakFor(live.inning, live.teamKey);
+  const cursor = viewCursor();
+  ensureTiebreakFor(cursor.inning, cursor.teamKey);
   persist();
   closeModal('game-settings-modal');
   updateScoresheet();
-  showToast('試合設定を保存しました。', 'success');
+  if (leftover.length) {
+    showToast(`試合設定を保存しました。${leftover.join('・')}の置きランナーは記録があるので残しています。いらなければ、そのマスを開いて「クリア」してください。`, 'warning', 8000);
+  } else {
+    showToast('試合設定を保存しました。', 'success');
+  }
+}
+
+// After the tiebreak settings change: placed runners of half-innings that have
+// no plate appearance yet are removed (ensureTiebreakRunners puts the right
+// ones back). Returns the labels of half-innings that still hold placed
+// runners although they are no longer tiebreak half-innings.
+function removeUnplayedPlacedRunners(game) {
+  const leftover = [];
+  for (const teamKey of TEAM_KEYS) {
+    for (const [inn, half] of Object.entries(game.atBats?.[teamKey] || {})) {
+      if (!half || typeof half !== 'object') continue;
+      const keys = Object.keys(half);
+      const placed = keys.filter(k => parseKey(game, teamKey, k).isPlaced);
+      if (!placed.length) continue;
+      const untouched = k => {
+        const c = half[k];
+        return !c || ((!Array.isArray(c.runnerEvents) || !c.runnerEvents.length) && !c.note && !c.outNumber);
+      };
+      if (placed.length === keys.length && placed.every(untouched)) {
+        for (const k of placed) delete half[k];
+      } else if (!isTiebreakInning(game, Number(inn))) {
+        leftover.push(inningLabel(Number(inn), teamKey));
+      }
+    }
+  }
+  return leftover;
 }

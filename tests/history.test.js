@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   archiveGame, listHistory, loadHistoryGame, deleteHistoryGame, gameHasRecords, gameHasData,
-  isWorthArchiving, matchLabel, buildBackup, parseBackup, applyBackup, MAX_HISTORY, BACKUP_APP,
+  isWorthArchiving, matchLabel, buildBackup, parseBackup, applyBackup, importAllData, MAX_HISTORY, BACKUP_APP,
 } from '../src/history.js';
 import {
   GameData, Team, TeamMember, saveGame, loadGame, saveTeams, loadTeams, clearGame, STORAGE_KEYS,
@@ -225,5 +225,46 @@ describe('backup', () => {
     expect(loadGame().id).toBe('mine');
     expect(listHistory()).toEqual([]);
     clearGame();
+  });
+
+  describe('importAllData asks first, in plain words', () => {
+    const fileOf = data => {
+      const text = JSON.stringify(data);
+      return { size: text.length, text: async () => text };
+    };
+    const backupWithGame = (extra = {}) => ({
+      app: BACKUP_APP, backupVersion: 1, exportedAt: '2026-10-11T10:00:00.000Z',
+      teams: [], currentGame: playedGame({ id: 'from-backup' }), history: [], ...extra,
+    });
+
+    it('says the device game moves to the history only when there is one to move', async () => {
+      let asked = '';
+      const ask = msg => { asked = msg; return false; };
+
+      expect(await importAllData(fileOf(backupWithGame()), { confirmFn: ask })).toMatchObject({ cancelled: true });
+      expect(asked).toMatch(/記録中の試合（ファイターズ 対 ジャイアンツ）/);
+      expect(asked).not.toMatch(/過去の試合」に移します/);
+
+      saveGame(playedGame({ id: 'on-device' }));
+      await importAllData(fileOf(backupWithGame()), { confirmFn: ask });
+      expect(asked).toMatch(/いま記録中の試合は「過去の試合」に移します/);
+      // cancelled: nothing changed
+      expect(loadGame().id).toBe('on-device');
+      expect(listHistory()).toEqual([]);
+    });
+
+    it('shows the save time only for a real export timestamp', async () => {
+      let asked = '';
+      await importAllData(fileOf(backupWithGame({ exportedAt: '<b>1</b>' })), { confirmFn: msg => { asked = msg; return false; } });
+      expect(asked.split('\n')[0]).toBe('バックアップを読み込みます。');
+    });
+
+    it('merges after the user agrees', async () => {
+      saveGame(playedGame({ id: 'on-device' }));
+      const result = await importAllData(fileOf(backupWithGame()), { confirmFn: () => true });
+      expect(result).toMatchObject({ ok: true, currentGame: true });
+      expect(loadGame().id).toBe('from-backup');
+      expect(listHistory().map(h => h.id)).toEqual(['on-device']);
+    });
   });
 });

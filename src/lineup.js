@@ -270,7 +270,7 @@ function renderForm() {
             <option value="${MANUAL}"${selected === MANUAL ? ' selected' : ''}>✏️ 名簿にない選手（手入力）</option>
           </select>` : ''}
           <input type="text" class="lineup-manual-input${showManual ? '' : ' hidden'}" data-idx="${i}"
-            placeholder="${i + 1}番の選手名" aria-label="${i + 1}番の選手名" autocomplete="off" enterkeyhint="next"
+            placeholder="${i + 1}番の選手名" aria-label="${i + 1}番の選手名" autocomplete="off" maxlength="24" enterkeyhint="next"
             value="${showManual ? escapeHtml(entry.name) : ''}" />
         </div>
         <div class="lineup-details">
@@ -320,7 +320,7 @@ function renderPitcherSection(list, lineup) {
           <option value="${MANUAL}"${selected === MANUAL ? ' selected' : ''}>✏️ 名簿にない選手（手入力）</option>
         </select>` : ''}
         <input type="text" id="lineup-pitcher-manual" class="lineup-manual-input${showManual ? '' : ' hidden'}"
-          placeholder="投手の名前" aria-label="先発投手の名前" autocomplete="off" value="${showManual ? escapeHtml(pitcher) : ''}" />
+          placeholder="投手の名前" aria-label="先発投手の名前" autocomplete="off" maxlength="24" value="${showManual ? escapeHtml(pitcher) : ''}" />
       </div>
     </div>`;
 }

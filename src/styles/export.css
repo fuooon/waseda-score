@@ -40,6 +40,14 @@
   border-bottom: 2px solid #1B7A3D;
 }
 
+/* Long names wrap instead of making the whole image wider (each line stays
+   within 960px; the header itself, with its rule, spans the image). */
+.export-header > * {
+  max-width: 960px;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
 .export-title-row {
   display: flex;
   align-items: center;
@@ -290,8 +298,14 @@
 .exporting .team-label {
   display: flex;
   width: max-content;
-  max-width: none;
+  max-width: 960px;
   font-size: 15px;
+}
+
+.exporting .team-label .team-side,
+.exporting .team-label .team-runs {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .exporting .team-name,

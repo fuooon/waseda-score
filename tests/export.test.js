@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   sanitizeFilename, exportFilename, formatGameDate, formatTimeRange, resultSummary,
-  buildHeaderHTML, buildBoardHTML, buildBoardNoteHTML, canvasScale, teamName,
+  buildHeaderHTML, buildBoardHTML, buildBoardNoteHTML, canvasScale, teamName, checksSummary,
 } from '../src/export.js';
 import { GameData } from '../src/data.js';
 import { scoreboard, validateGame } from '../src/scoring.js';
@@ -37,7 +37,7 @@ describe('sanitizeFilename', () => {
   it('drops leading / trailing dots and underscores and invisible direction marks', () => {
     expect(sanitizeFilename('..hidden..')).toBe('hidden');
     expect(sanitizeFilename('  name  ')).toBe('name');
-    expect(sanitizeFilename('gnp.‮exe')).toBe('gnp._exe');
+    expect(sanitizeFilename('gnp.\u202eexe')).toBe('gnp._exe');
   });
 
   it('falls back when nothing is left', () => {
@@ -129,12 +129,15 @@ describe('buildBoardHTML', () => {
     expect(html).toContain('A&amp;B');
   });
 
-  it('uses 先攻 / 後攻 for empty team names', () => {
-    expect(teamName({ teamFirst: '  ' }, 'first')).toBe('先攻');
-    expect(teamName({}, 'second')).toBe('後攻');
-    const rows = boardRows(buildBoardHTML(makeGame({ teamFirst: '', teamSecond: '' })));
-    expect(rows[1][0]).toBe('先攻先攻');
-    expect(rows[2][0]).toBe('後攻後攻');
+  it('uses the score sheet words 先攻チーム / 後攻チーム for empty team names', () => {
+    expect(teamName({ teamFirst: '  ' }, 'first')).toBe('先攻チーム');
+    expect(teamName({}, 'second')).toBe('後攻チーム');
+    const game = makeGame({ teamFirst: '', teamSecond: '' });
+    const rows = boardRows(buildBoardHTML(game));
+    expect(rows[1][0]).toBe('先攻先攻チーム');
+    expect(rows[2][0]).toBe('後攻後攻チーム');
+    // the file name keeps the short words
+    expect(exportFilename({ date: '2026-10-11', teamFirst: '', teamSecond: '' })).toBe('score_2026-10-11_先攻_vs_後攻.png');
   });
 
   it('explains X and blanks in plain words only when they appear', () => {
@@ -227,5 +230,34 @@ describe('canvasScale', () => {
 
   it('handles unknown sizes', () => {
     expect(canvasScale(0, 0)).toBe(2);
+  });
+});
+
+describe('checksSummary', () => {
+  it('says OK when there is nothing to check', () => {
+    expect(checksSummary([])).toEqual({ ok: true, text: '✓ 記録チェックOK：おかしな点はありません。' });
+    expect(checksSummary(validateGame(finishedGame())).ok).toBe(true);
+  });
+
+  it('counts every item like the sheet badge and names the levels', () => {
+    const issues = [{ severity: 'error' }, { severity: 'warning' }, { severity: 'warning' }, { severity: 'info' }];
+    const summary = checksSummary(issues);
+    expect(summary.ok).toBe(false);
+    expect(summary.text).toContain('気になる点が4件あります（エラー1・注意2・確認1）');
+  });
+
+  it('treats suggestions only (確認) as not wrong', () => {
+    const summary = checksSummary([{ severity: 'info' }, { severity: 'odd' }]);
+    expect(summary.ok).toBe(true);
+    expect(summary.text).toContain('確認2件（まちがいではありません');
+  });
+
+  it('matches validateGame on a record with a mistake', () => {
+    const game = finishedGame();
+    const cell = Object.values(game.atBats.first[1]).find(c => c.outNumber);
+    cell.outNumber = null;
+    const issues = validateGame(game);
+    expect(issues.length).toBeGreaterThan(0);
+    expect(checksSummary(issues).text).toContain(`${issues.length}件`);
   });
 });

@@ -290,6 +290,34 @@ describe('recording through the panel', () => {
     expect(S.dest).toBe(2);
   });
 
+  it('a runner who came home on his own events cannot also be put out', () => {
+    const S = createState(gameWith({}), top1(0));
+    selectResult(S, 'TRIPLE');
+    addEvent(S, 'PASSED_BALL');
+    expect(S.dest).toBe(4);
+    addEvent(S, 'PICKOFF');
+    setDest(S, 'out');
+    expect(S.dest).toBe(4);
+    expect(buildSubmission(S).result).toMatchObject({ basesReached: 4, runnerEvents: [{ type: 'PASSED_BALL', base: 4 }] });
+  });
+
+  it('a runner put out does not advance home on a later event', () => {
+    const S = createState(gameWith({}), top1(0));
+    selectResult(S, 'TRIPLE');
+    setDest(S, 'out');
+    expect(S.outBase).toBe(4);
+    addEvent(S, 'WILD_PITCH');
+    expect(buildSubmission(S).result).toMatchObject({ basesReached: 3, runnerEvents: [{ type: 'RUNNER_OUT', base: 4 }] });
+    // a single, out at third: one advance (to second) still fits before the out
+    const T = createState(gameWith({}), top1(0));
+    selectResult(T, 'SINGLE');
+    setDest(T, 'out');
+    addEvent(T, 'STOLEN_BASE');
+    expect(buildSubmission(T).result).toMatchObject({
+      basesReached: 2, runnerEvents: [{ type: 'STOLEN_BASE', base: 2 }, { type: 'RUNNER_OUT', base: 3 }],
+    });
+  });
+
   it('RBI can be overridden and set back to the suggestion', () => {
     const game = gameWith({ 0: { resultType: 'DOUBLE', positions: '7', basesReached: 2 } });
     const S = createState(game, top1(1));

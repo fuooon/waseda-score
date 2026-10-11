@@ -14,7 +14,7 @@
 import './style.css';
 import './styles/flow.css';
 import { loadGame, saveGame, clearGame } from './data.js';
-import { initTeamMembers, refreshTeams } from './team-members.js';
+import { initTeamMembers, refreshTeams, closeTeamMemberModals } from './team-members.js';
 import { initGameSetup, showGameSetup, refreshPresets } from './game-setup.js';
 import { initLineup, lineupCanLeave, getLineupMode, refreshLineup } from './lineup.js';
 import { initScoresheet } from './scoresheet.js';
@@ -46,11 +46,28 @@ function isSubPage(page) {
   return SUB_PAGES.has(page) || (page === 'lineup' && getLineupMode() === 'edit');
 }
 
+// A double tap on a button that changes the page would land its second tap on
+// whatever the new page has at the same spot (e.g. 記録開始 → a score cell):
+// the new page ignores taps for a moment.
+const TAP_GUARD_MS = 400;
+let tapGuardTimer = null;
+
+function guardAgainstGhostTaps(page) {
+  page.classList.add('page-entering');
+  clearTimeout(tapGuardTimer);
+  tapGuardTimer = setTimeout(() => page.classList.remove('page-entering'), TAP_GUARD_MS);
+}
+
 function showPage(pageId) {
   const page = el(`page-${pageId}`);
   if (!page) return;
   currentPage = pageId;
-  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p === page));
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.toggle('active', p === page);
+    if (p !== page) p.classList.remove('page-entering');
+  });
+  guardAgainstGhostTaps(page);
+  if (pageId !== 'team-members') closeTeamMemberModals(); // never left open behind another page
   // Re-trigger the fade-in animation
   page.style.animation = 'none';
   void page.offsetHeight;
@@ -131,6 +148,11 @@ function handlePopState() {
   }
   if (!historyEntryPushed) return;
   historyEntryPushed = false;
+  // The phone's back button closes an open dialog first and stays on the page.
+  if (closeTeamMemberModals()) {
+    syncBrowserHistory();
+    return;
+  }
   goBack();
 }
 
@@ -150,10 +172,22 @@ function enterScoresheet() {
   initExport(currentGame);
 }
 
+// Asks the browser not to clear our storage on its own (Safari clears sites
+// that were not used for a while). Asked when a game starts rather than on the
+// first visit, because some browsers (Firefox) show a permission prompt.
+function requestPersistentStorage() {
+  try {
+    navigator.storage?.persist?.().catch(() => {});
+  } catch {
+    // not available
+  }
+}
+
 const lineupCallbacks = {
   onComplete: (game) => {
     currentGame = game;
     enterScoresheet();
+    requestPersistentStorage();
   },
   onBack: (game) => {
     currentGame = game;
@@ -235,6 +269,7 @@ function startNewGame() {
 }
 
 function openHistoryGame(id) {
+  if (!leaveLineupEditGuard()) return;
   if (currentGame && id === currentGame.id) {
     resumeCurrentGame();
     return;
@@ -276,9 +311,11 @@ function openTeamMembers() {
   goTo('team-members');
 }
 
-// Leaving the lineup editor to a main page asks before discarding edits.
+// Leaving the lineup editor to a main page asks before discarding edits (also
+// when the editor is below the current sub page, e.g. help opened from it).
 function leaveLineupEditGuard() {
-  if (currentPage === 'lineup' && getLineupMode() === 'edit') return lineupCanLeave();
+  const editorOpen = currentPage === 'lineup' || pageStack.includes('lineup');
+  if (editorOpen && getLineupMode() === 'edit') return lineupCanLeave();
   return true;
 }
 
@@ -346,13 +383,23 @@ function updateMenu() {
 // Data restored from a backup
 // ============================================
 
-function handleDataImported() {
+function handleDataImported(e) {
   refreshTeams();
-  currentGame = loadGame();
-  if (currentGame?.lineupDone) {
-    // swap the sheet's game reference now (its page is hidden)
-    initScoresheet(currentGame);
-    initExport(currentGame);
+  refreshPresets();
+  if (e?.detail?.currentGame) {
+    // The backup replaced the current game. The pages below this one (setup
+    // form, lineup draft or lineup edit) still show the old game and would
+    // save it over the restored one: give every module the restored game and
+    // make ← 戻る open it.
+    currentGame = loadGame();
+    pageStack = [];
+    showGameSetup({ game: currentGame });
+    if (currentGame?.lineupDone) {
+      initScoresheet(currentGame);
+      initExport(currentGame);
+    } else if (currentGame) {
+      initLineup(currentGame, lineupCallbacks, { mode: 'new' });
+    }
   }
   renderHistoryList();
   updateMenu();
@@ -394,21 +441,18 @@ function bindAppEvents() {
 
 function init() {
   bindAppEvents();
-  // Ask the browser not to clear our storage on its own (Safari clears sites
-  // that were not used for a while). Best effort; ignored when unsupported.
-  try {
-    navigator.storage?.persist?.().catch(() => {});
-  } catch {
-    // not available
-  }
   initTeamMembers();
   initGameSetup((game) => {
+    // The form saved a new game over the current one: keep the old one in the
+    // history (normally it was archived already by 🏟️ 新しい試合).
+    if (currentGame && currentGame !== game && currentGame.id !== game.id) archiveCurrentGame();
     currentGame = game;
     openLineupDraft();
   });
   initHistoryPage({
     onOpen: openHistoryGame,
     currentGameId: () => currentGame?.id || null,
+    currentGame: () => currentGame,
   });
 
   // Resume where the user left off.

@@ -8,7 +8,8 @@
 // The half-inning being viewed (game.currentInning / currentHalf) is highlighted.
 // Cells carry data-team / data-inning so the sheet can move the cursor on tap.
 
-import { scoreboard } from './scoring.js';
+import { scoreboard, liveState } from './scoring.js';
+import { MAX_INNINGS } from './rules.js';
 import { escapeHtml } from './util.js';
 
 const TEAM_KEYS = ['first', 'second'];
@@ -16,7 +17,7 @@ const TEAM_KEYS = ['first', 'second'];
 function teamLabel(game, teamKey) {
   const name = teamKey === 'first' ? game.teamFirst : game.teamSecond;
   const trimmed = typeof name === 'string' ? name.trim() : '';
-  return trimmed || (teamKey === 'first' ? '先攻' : '後攻');
+  return trimmed || (teamKey === 'first' ? '先攻チーム' : '後攻チーム');
 }
 
 function runsText(value) {
@@ -24,15 +25,25 @@ function runsText(value) {
   return String(value);
 }
 
-export function renderScoreboard(container, game) {
+// opts.columns: number of inning columns to show (the sheet passes its own so
+// both line up). By default: the scoreboard's columns, plus the inning being
+// played or viewed (an extra inning shows up before it has any record).
+export function renderScoreboard(container, game, opts = {}) {
   if (!container || !game) return;
   const sb = scoreboard(game);
   const viewTeam = game.currentHalf === 'bottom' ? 'second' : 'first';
   const viewInning = Number(game.currentInning) || 1;
+  let count = Number(opts.columns);
+  if (!Number.isInteger(count) || count < 1) {
+    const live = liveState(game);
+    count = Math.max(sb.maxInning, viewInning, live.gameOver ? 0 : live.inning);
+  }
+  count = Math.min(MAX_INNINGS, Math.max(count, sb.maxInning));
+  const columns = Array.from({ length: count }, (_, i) => i + 1);
 
   let html = '<table class="sb-table" aria-label="スコアボード"><thead><tr>';
   html += '<th class="sb-team-head" scope="col"><span class="sr-only">チーム</span></th>';
-  for (const n of sb.columns) {
+  for (const n of columns) {
     const cls = n === viewInning ? ' class="sb-col-current"' : '';
     html += `<th scope="col"${cls}>${n}</th>`;
   }
@@ -48,7 +59,7 @@ export function renderScoreboard(container, game) {
     html += `<tr class="sb-row-${teamKey}${isWinner ? ' sb-winner' : ''}">`;
     html += `<th class="sb-team" scope="row" title="${escapeHtml(name)}">` +
       `<span class="sb-side">${teamKey === 'first' ? '先' : '後'}</span>${escapeHtml(name)}</th>`;
-    sb.columns.forEach((n, i) => {
+    columns.forEach((n, i) => {
       const value = line.innings[i];
       const cls = ['sb-cell'];
       if (value === null || value === undefined) cls.push('sb-empty');
@@ -63,11 +74,4 @@ export function renderScoreboard(container, game) {
   }
   html += '</tbody></table>';
   container.innerHTML = html;
-}
-
-// TEMPORARY (phase 2): kept only until export.js stops importing it; removed per CONTRACT.
-export function renderScoreboardForExport(game) {
-  const box = { innerHTML: '' };
-  renderScoreboard(box, game);
-  return `<div style="background:#fff;padding:16px;">${box.innerHTML}</div>`;
 }

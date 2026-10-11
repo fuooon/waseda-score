@@ -35,6 +35,18 @@ export function refreshTeams() {
   render();
 }
 
+// Closes the add/edit dialogs of this page. Returns true when one was open.
+export function closeTeamMemberModals() {
+  if (typeof document === 'undefined') return false;
+  const isOpen = id => !!document.getElementById(id) && !document.getElementById(id).classList.contains('hidden');
+  const wasOpen = isOpen('member-modal') || isOpen('team-modal');
+  if (wasOpen) {
+    closeMemberModal();
+    closeTeamModal();
+  }
+  return wasOpen;
+}
+
 export function getTeams() {
   if (!loaded) loadFromStorage();
   return teams;

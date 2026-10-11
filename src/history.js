@@ -271,8 +271,9 @@ export function applyBackup(data, { now = Date.now() } = {}) {
   return result;
 }
 
-function backupConfirmText(summary) {
-  const when = summary.exportedAt ? new Date(summary.exportedAt) : null;
+function backupConfirmText(summary, { replacesDeviceGame = false } = {}) {
+  // Only dates written by exportAllData (ISO); Date() guesses at anything else.
+  const when = /^\d{4}-\d{2}-\d{2}T/.test(summary.exportedAt) ? new Date(summary.exportedAt) : null;
   const whenText = when && !Number.isNaN(when.getTime())
     ? `（${when.toLocaleDateString('ja-JP')} ${when.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })} に保存）` : '';
   const lines = [`バックアップを読み込みます${whenText}。`];
@@ -282,7 +283,7 @@ function backupConfirmText(summary) {
   if (summary.skipped) lines.push(`※ 読めなかったデータが${summary.skipped}件ありました（読み飛ばします）`);
   lines.push('');
   lines.push('同じチーム・同じ試合はバックアップの内容になります。この端末にしかないチームや試合は残ります。');
-  if (summary.currentGame) lines.push('いま記録中の試合は「過去の試合」に移します。');
+  if (replacesDeviceGame) lines.push('いま記録中の試合は「過去の試合」に移します。');
   lines.push('読み込みますか？');
   return lines.join('\n');
 }
@@ -308,7 +309,9 @@ export async function importAllData(file, { confirmFn } = {}) {
     showToast(parsed.error, 'error', 6000);
     return parsed;
   }
-  if (!ask(backupConfirmText(parsed.summary))) return { ok: false, cancelled: true };
+  const deviceGame = parsed.data.currentGame ? loadGame() : null;
+  const replacesDeviceGame = !!deviceGame && deviceGame.id !== parsed.data.currentGame.id && isWorthArchiving(deviceGame);
+  if (!ask(backupConfirmText(parsed.summary, { replacesDeviceGame }))) return { ok: false, cancelled: true };
 
   const result = applyBackup(parsed.data);
   if (result.ok) {
@@ -327,7 +330,7 @@ export async function importAllData(file, { confirmFn } = {}) {
 let pageBound = false;
 let pageCallbacks = {};
 
-//   callbacks: { onOpen(id), currentGameId() }
+//   callbacks: { onOpen(id), currentGameId(), currentGame() }
 export function initHistoryPage(callbacks = {}) {
   pageCallbacks = callbacks;
   if (pageBound || typeof document === 'undefined') return;
@@ -379,8 +382,12 @@ function savedAtText(time) {
 export function renderHistoryList() {
   const container = typeof document !== 'undefined' ? document.getElementById('history-list') : null;
   if (!container) return;
-  const items = listHistory();
   const currentId = pageCallbacks.currentGameId?.() || null;
+  // The game being recorded is shown as it is now, not as it was archived.
+  const live = currentId ? pageCallbacks.currentGame?.() : null;
+  const items = listHistory().map(item => (live && item.id === currentId
+    ? { ...summarizeEntry({ id: item.id, savedAt: item.savedAt, game: toPlain(live) }), savedAt: item.savedAt }
+    : item));
 
   if (items.length === 0) {
     container.innerHTML = `
@@ -396,7 +403,7 @@ export function renderHistoryList() {
     const isCurrent = item.id === currentId;
     const first = String(item.teamFirst || '').trim() || '先攻';
     const second = String(item.teamSecond || '').trim() || '後攻';
-    const dateText = item.date ? formatDateJa(item.date) : '日付なし';
+    const dateText = (item.date && formatDateJa(item.date)) || '日付なし';
     const status = !item.hasRecords ? 'スタメンのみ' : (item.status === 'final' ? '試合終了' : '途中まで記録');
     return `
       <div class="history-item${isCurrent ? ' is-current' : ''}" data-id="${id}">
@@ -411,7 +418,7 @@ export function renderHistoryList() {
         </div>
         <div class="history-actions">
           <button type="button" class="btn btn-primary btn-small history-open-btn" data-id="${id}">${isCurrent ? '戻る' : '開く'}</button>
-          <button type="button" class="btn btn-secondary btn-small history-delete-btn" data-id="${id}" aria-label="${escapeHtml(dateText)}の試合を削除">削除</button>
+          ${isCurrent ? '' : `<button type="button" class="btn btn-secondary btn-small history-delete-btn" data-id="${id}" aria-label="${escapeHtml(dateText)}の試合を削除">削除</button>`}
         </div>
       </div>`;
   }).join('');
